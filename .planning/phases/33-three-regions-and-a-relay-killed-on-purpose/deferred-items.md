@@ -85,3 +85,22 @@ failure against a format `STATE.md`'s hand-written frontmatter does not follow (
 Phase` keys the tool expects), and the handler apparently writes a truncated/regenerated file
 as a side effect of failing to parse the existing one. Fixing the STATE.md update problem
 belongs in the `gsd-sdk` tooling, not in this phase's plans.
+
+## `region-loss-drill.yml`'s artifact path rests on an unverified runner assumption, mitigated but not eliminated — plan 33-05
+
+`.github/workflows/region-loss-drill.yml` pins `TMPDIR: ${{ runner.temp }}` on the vitest step
+and uploads `${{ runner.temp }}/o2-region-loss-drill/two-arm-table.csv`, so the spec's own
+`os.tmpdir()` and the upload path agree BY CONSTRUCTION rather than by an assumption that a
+GitHub-hosted runner leaves `TMPDIR` unset. That much is a real fix, not a hope.
+
+**What is still genuinely unmeasured**: whether `runner.temp` itself resolves to a writable
+directory on `ubuntu-latest` inside a `workflow_dispatch`/`schedule` run, in the exact way this
+plan assumes, is read from GitHub's own documentation and not run — this session cannot dispatch
+a real Actions workflow. `aot-cross-host.yml`'s own header states the identical position for its
+own runner-availability question: *"the first dispatch of this workflow is that experiment."*
+The backstop is `if-no-files-found: error` on the upload step — a wrong assumption here fails
+the run loudly on its first firing rather than silently uploading nothing, which is the same
+shape `aot-cross-host.yml`'s `report-host` job uses to settle its own unmeasured question cheaply
+before the expensive step runs. Not fixed further because it cannot be, from inside this session;
+recorded so whoever reads the first scheduled or dispatched run's result knows what to check if
+the upload step is the one that fails.
