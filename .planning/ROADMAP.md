@@ -2425,7 +2425,12 @@ The busy window moved the relay LESS than the idle one. Thirty-eight rounds of w
   2. **No surface, document, published record or benchmark line claims where a hosted object runs.** A grep over this milestone's published copy and results finds no location claim, and a review rejects any figure captioned with a city or a country attributed to a hint. The object is placed in a datacenter chosen to minimise latency *from* the hint, so the region name is an address and never a location claim — a report saying "measured in São Paulo" on the strength of a hint has written a measured fact it did not measure
   3. A **scheduled, repeated** drill takes one region's relay out and reports bounded, measured degradation: which stage of Phase 37's funnel moves, and by how much, against the same arrangement with the relay up. A drill run once is a design review; the schedule is the requirement, and its absence from the schedule is the failure
   4. Each region's object is dialable from the other two, so losing one region is a measured degradation and not a partition — observed during the drill rather than asserted from the topology
-**Plans**: TBD
+**Plans**: 5 plans, 5 waves (sequential — 01 is a dependency of everything after it, 01/03/04/05 all re-derive `vitest.config.ts`'s hand-derived counts, and every plan plants, which this repository's shared working tree forbids doing in parallel)
+- [ ] `33-01-PLAN.md` — the placement vocabulary: a closed jurisdiction union, a closed hint set, two separately-named helpers, one siting call. Its cases land in `hosted-identity.test.ts` rather than a new file, because `hosted-tier-deploy.node.test.ts` pins the set of files that may so much as NAME `idFromName` to two
+- [ ] `33-02-PLAN.md` — two entry modules, two deploy configurations, the owner script taking one region per invocation behind the `HOST-10` alert gate, the deploy guard extended to all three
+- [ ] `33-03-PLAN.md` — criterion 1's negative proof at compile time, with the recorded reading that a local runtime refuses every jurisdiction value identically
+- [ ] `33-04-PLAN.md` — `HOST-07`'s guard over the published surface and the results, with both plants watched red
+- [ ] `33-05-PLAN.md` — the region-loss drill as a two-arm comparative reading, and the weekly schedule a guard reads
 
 ### Phase 34: Two Fallback Rungs Below Direct WebRTC
 **Goal**: As a browser visitor, I want a pair that cannot connect directly to fall to TURN, and a pair that cannot use TURN to fall to a relayed connection whose budget is written down at 64 KiB **each way** and tested on the relayed path, so that my tab still joins and no design assumes twice the room it has.
