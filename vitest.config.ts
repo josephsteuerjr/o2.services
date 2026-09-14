@@ -757,8 +757,19 @@ const NODE_MEASUREMENT = {
    * naming that identifier, and the pre-existing guard returned to its own two-file count —
    * unrelated to and untouched otherwise.
    */
-  files: 265,
-  tests: 3838,
+  /**
+   * **`files` 265 -> 266, `tests` 3838 -> 3850 on 2026-09-14 (Phase 33, plan 05, Task 3).**
+   * One new node-lane file, `region-loss-drill-schedule.node.test.ts`, carrying 12 cases —
+   * `3850 - 3838 = 12` agrees with the count and is not a substitute for it. Measured off a
+   * real `npx vitest run --project node`: `Test Files 1 failed | 265 passed (266)`, `Tests
+   * 1 failed | 3847 passed | 2 skipped (3850)`. **The one failure is unrelated to this
+   * plan**: `closed-fabric-agents.node.test.ts`'s own `until` timed out on a host its own
+   * banner called OVERSUBSCRIBED (load/core 26.25 against the 4.00 ceiling) — re-run alone,
+   * on the same still-oversubscribed host (load/core 21.61-24.53): 7/7 passed. Attributed by
+   * isolated re-run, not by plausibility, per `CLAUDE.md` § Measurement.
+   */
+  files: 266,
+  tests: 3850,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1122,8 +1133,20 @@ const NODE_MEASUREMENT = {
    * `Tests 1 failed | 3073 passed (3074)`. The one failure is the same dated
    * `requirements-ledger/stale-promise` `AOT-03` finding named above, unrelated to this plan.
    */
-  unitFiles: 182,
-  unitTests: 3074,
+  /**
+   * **`unitFiles` 182 -> 183, `unitTests` 3074 -> 3086 on 2026-09-14 (Phase 33, plan 05,
+   * Task 3).** `region-loss-drill-schedule.node.test.ts` reads two small files and does
+   * string/regex work with no subprocess — measured at 5 ms, well under `SLOW_CUTOFF_MS` —
+   * so it joins the unit lane rather than `MEASURED_NODE_SPANS`. `files` moved 265 -> 266
+   * with no change to `excludedInNode`, so the identity `unitFiles === files -
+   * excludedInNode` gives `266 - 83 = 183`. Confirmed behaviourally:
+   * `O2_UNIT_ONLY=1 npx vitest run --project node` collected `Test Files 183 passed (183)`
+   * and `Tests 3086 passed (3086)` — `3086 - 3074 = 12` agrees with the twelve new cases,
+   * both files clean on a host its own banner still called oversubscribed (load/core
+   * 20.98-22.48), which does not affect a count.
+   */
+  unitFiles: 183,
+  unitTests: 3086,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,
