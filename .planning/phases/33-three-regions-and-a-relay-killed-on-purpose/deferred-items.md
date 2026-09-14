@@ -36,3 +36,10 @@ three packages already include), not a change to either failing file's logic.
 Both of 33-01's own tasks verified clean against this gap: Task 1's `tsc -p packages/cloudflare`
 diff (before vs. after the edit) is the empty set — same six errors, same six lines, nothing
 added and nothing removed by `hosted-object.ts`'s changes.
+
+**Confirmed a per-package-isolation artifact, not a real defect, by running the whole
+workspace**: `npx tsc --noEmit -p .` (the root config, which brings every package's project
+references into one program) exits `0` with zero output on this same tree, after both of
+33-01's tasks. The six errors exist only when `packages/cloudflare` is type-checked in
+isolation from `packages/browser`, which is where `Window.o2` is declared. Recorded here rather
+than acted on for the same scope-boundary reason above.

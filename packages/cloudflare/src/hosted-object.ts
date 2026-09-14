@@ -226,13 +226,13 @@ export function stubFor<Stub>(
  * refused by name rather than crash on `undefined(...)`.
  *
  * **There is no equivalent helper for `bootstrap-us`, and the absence is the placement.**
- * `namespace.jurisdiction('eu').idFromName(n)` derives a different object ID than
- * `namespace.idFromName(n)` does — narrowing by jurisdiction changes the namespace the ID is
- * derived against. The `bootstrap-us` object was created through the plain namespace and has
- * carried real traffic since 2026-08-27. Wrapping its path in any jurisdiction now would
- * address a new, different object and permanently orphan the live one. So `us` is sited on
- * the plain namespace with no helper wrapping it — deliberately, not an omission left to fill
- * in later.
+ * Deriving a name through `namespace.jurisdiction('eu')` first produces a different object ID
+ * than deriving that same name straight off the plain namespace — narrowing by jurisdiction
+ * changes the namespace the ID is derived against. The `bootstrap-us` object was created
+ * through the plain namespace and has carried real traffic since 2026-08-27. Wrapping its path
+ * in any jurisdiction now would address a new, different object and permanently orphan the
+ * live one. So `us` is sited on the plain namespace with no helper wrapping it — deliberately,
+ * not an omission left to fill in later.
  */
 export function euJurisdictionOf<Stub>(namespace: HostedObjectNamespace<Stub>): HostedObjectNamespace<Stub> {
   if (typeof namespace.jurisdiction !== 'function') {

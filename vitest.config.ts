@@ -669,8 +669,30 @@ const NODE_MEASUREMENT = {
    * recorded here because inventing a total nobody counted is the defect this table exists to
    * prevent, and so is leaving one stale beside a number that moved.
    */
+  /**
+   * **`tests` 3796 -> 3802 on 2026-09-13 (Phase 33, plan 01), and `files` did NOT move.** Six
+   * cases arrived in `packages/cloudflare/src/hosted-identity.test.ts`, an EXISTING file, not a
+   * new one — `hosted-tier-deploy.node.test.ts:198-215` pins the set of tracked `.ts` files
+   * that so much as name the one platform call that sites a stub to exactly two, so a new spec
+   * file asserting on `euJurisdictionOf`/`samLocationHint` would have been a third and reddened
+   * that guard. The
+   * cases therefore went into the block that already held the one-call-site cases, and `files`
+   * stays at 263 while `tests` alone moves. Counted rather than added: `npx vitest run
+   * --project node` collected `Test Files (263)` and `Tests 3794 passed | 4 skipped | 4 failed
+   * (3802)`. **The 4 failures are unrelated to this plan** — none is in `packages/cloudflare`
+   * or names `hosted-object`/`hosted-identity`; they are
+   * `packages/node/src/closed-fabric-agents.node.test.ts`,
+   * `packages/node/src/enrolment-residual.node.test.ts`,
+   * `packages/node/src/requirements-ledger.node.test.ts` (a dated stale-promise finding that
+   * moves with the calendar, not with this edit) and
+   * `packages/node/src/result-signature.node.test.ts` (a real subprocess enrollment timing out
+   * — the run's own banner did not flag contention for this particular file, but the failure
+   * text is a network RPC timeout, not an assertion on placement). `3802 - 3796 = 6` agrees
+   * with the six cases named above, which is the arithmetic check on the count rather than a
+   * substitute for having run it.
+   */
   files: 263,
-  tests: 3796,
+  tests: 3802,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -981,8 +1003,26 @@ const NODE_MEASUREMENT = {
    * Phase 39's six still in it, which is the intended shape: the fast loop loses the file
    * that spawns two `workerd` processes and keeps every guard.
    */
+  /**
+   * **`unitTests` 3068 -> 3074 on 2026-09-13 (Phase 33, plan 01), and `unitFiles` did NOT
+   * move.** Same event as the `tests`/`files` note above: six cases arrived in an EXISTING
+   * unit-lane file (`hosted-identity.test.ts`, not on `SLOW_NODE_SPECS`), so the identity
+   * `unitFiles === files - excludedInNode` holds unchanged at `263 - 81 = 182` — confirmed by
+   * `slow-specs.node.test.ts` passing after this edit, not merely asserted here. `unitTests`
+   * was measured rather than stepped by six on faith: `O2_UNIT_ONLY=1 npx vitest run --project
+   * node` collected `Test Files (182)` and `Tests 3073 passed | 1 failed (3074)`. The one
+   * failure is the same dated `requirements-ledger/stale-promise` finding named in the `tests`
+   * note above, reproduced here on a run whose own banner reported the host oversubscribed
+   * (load/core 8.09) — not evidence about this plan's two files. `3074 - 3068 = 6` agrees with
+   * the six cases, the same arithmetic check as above and not a substitute for the count.
+   *
+   * **`unitWallClockMs` is NOT moved by this pass.** The measurement above ran on a host its
+   * own banner called oversubscribed, and this file's convention (see the 2026-08-25 entry
+   * above) is that a duration taken under load is void and must not overwrite a quiet-host
+   * reading — so `10_240` stands until re-measured on a quiet host.
+   */
   unitFiles: 182,
-  unitTests: 3068,
+  unitTests: 3074,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,
