@@ -712,8 +712,24 @@ const NODE_MEASUREMENT = {
    * — are neither in `packages/cloudflare` nor name anything this plan touches. `3812 - 3802 =
    * 10` agrees with the ten cases named above.
    */
-  files: 263,
-  tests: 3812,
+  /**
+   * **`files` 263 -> 264 and `tests` 3812 -> 3820 on 2026-09-13 (Phase 33, plan 03).** One new
+   * file, `packages/cloudflare/src/jurisdiction-closed.node.test.ts` — criterion 1's negative
+   * proof, taken at the compiler rather than at a local runtime that cannot see the property
+   * (see that file's own header docblock). Eight cases arrived with it. Counted rather than
+   * added: `npx vitest run --project node` collected `Test Files 3 failed | 261 passed (264)`
+   * and `Tests 3815 passed | 2 skipped | 3 failed (3820)`. **The 3 failures are unrelated to
+   * this plan and none is in `packages/cloudflare`**: `packages/node/src/coverage-agents.node.test.ts`
+   * and `packages/node/src/speculation-agents.node.test.ts` both pass alone (2/2 and 1/1) on a
+   * re-run whose own banner still called the host oversubscribed at the START but not by the
+   * time each finished — attributed by isolated re-run rather than by plausibility, and
+   * `packages/node/src/requirements-ledger.node.test.ts` is the same dated `AOT-03`
+   * stale-promise finding every commit this phase has already surfaced as "outside this
+   * commit, not blocking", reproduced identically in isolation. `3820 - 3812 = 8` agrees with
+   * the eight cases named above.
+   */
+  files: 264,
+  tests: 3820,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1041,6 +1057,27 @@ const NODE_MEASUREMENT = {
    * own banner called oversubscribed, and this file's convention (see the 2026-08-25 entry
    * above) is that a duration taken under load is void and must not overwrite a quiet-host
    * reading — so `10_240` stands until re-measured on a quiet host.
+   */
+  /**
+   * **Neither `unitFiles` nor `unitTests` moved on 2026-09-13 (Phase 33, plan 03), and that is
+   * an identity holding rather than an omission.** `jurisdiction-closed.node.test.ts` (see the
+   * `tests`/`files` note above) measured well above `SLOW_CUTOFF_MS` — it spawns a real `tsc`
+   * five times — so it was added to `MEASURED_NODE_SPANS` and is excluded from the unit lane.
+   * `files` moved 263 -> 264 and `excludedInNode` moved 81 -> 82 by the same one file, so the
+   * identity `unitFiles === files - excludedInNode` gives `264 - 82 = 182`, unchanged.
+   * Confirmed behaviourally, not only by the identity: `O2_UNIT_ONLY=1 npx vitest run
+   * --project node` collected `Test Files (182)` — the new file genuinely absent from the
+   * list, not merely absent from the count — and `Tests 3070 passed | 4 failed (3074)`.
+   * **3 of the 4 failures are unrelated to this plan**: `packages/browser/src/nostr-bootstrap.test.ts`
+   * (a pre-existing flake this plan's files do not touch) and the same dated
+   * `requirements-ledger/stale-promise` `AOT-03` finding named above. **The other one WAS
+   * this measurement's own transient state**: `slow-specs.node.test.ts` itself failed twice —
+   * once on the `unitFiles` identity (stale `files: 263` not yet updated when this run was
+   * taken) and once on its tracked-path check (the new spec file was not yet `git add`ed, so
+   * `git ls-files` did not carry it) — both are this same commit's own edits landing in the
+   * order that made the guard transiently correct about a state that was mid-edit, not a
+   * finding about anything else. Re-run after `files` moved to 264 and the file was staged:
+   * clean.
    */
   unitFiles: 182,
   unitTests: 3074,
@@ -1621,6 +1658,17 @@ const MEASURED_NODE_SPANS: readonly (readonly [string, number])[] = [
   ['packages/core/src/sealed-secret.test.ts', 3_576],
   ['packages/node/src/reachability-guard.node.test.ts', 3_483],
   ['packages/node/src/execution-deadline.node.test.ts', 3_359],
+  // Added 2026-09-13 (Phase 33, plan 03). Measured solo, `tests` phase only, on a host its
+  // own banner called OVERSUBSCRIBED (load/core 5.60-5.95 against the 4.00 ceiling) —
+  // readings clustered 3 233-3 998 ms across three solo runs at different load levels, which
+  // this file's own convention says to treat as void for a PRECISE figure. Recorded anyway,
+  // at the LOWEST of the three readings rather than invented, because the classification
+  // question — does this clear `SLOW_CUTOFF_MS` — does not turn on which reading is used:
+  // every one of the three is more than 3x the cutoff. The file spawns a real `tsc` five
+  // times (`jurisdiction-closed.node.test.ts`'s own `beforeAll`), so the cost is real
+  // compiler process overhead and not primarily CPU contention — worth re-measuring on a
+  // quiet host for precision, not for the slow/fast verdict.
+  ['packages/cloudflare/src/jurisdiction-closed.node.test.ts', 3_233],
   ['packages/node/src/egress-refusal.node.test.ts', 3_146],
   ['packages/node/src/provider-answering.node.test.ts', 3_142],
   ['packages/node/src/sovereign-at-rest.node.test.ts', 3_026],
