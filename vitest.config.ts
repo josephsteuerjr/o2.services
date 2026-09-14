@@ -691,8 +691,29 @@ const NODE_MEASUREMENT = {
    * with the six cases named above, which is the arithmetic check on the count rather than a
    * substitute for having run it.
    */
+  /**
+   * **`tests` 3802 -> 3812 on 2026-09-13 (Phase 33, plan 02), and `files` did NOT move.** Ten
+   * cases arrived in `packages/node/src/hosted-tier-deploy.node.test.ts`, an EXISTING file —
+   * two more `it.each` iterations of the "builds at all" envelope case (now covering all three
+   * region configurations, not only `us`), one `.get(` call-count case, four `HOST-06`
+   * placement-pinning cases and three `it.each` iterations of the new four-way-agreement case.
+   * Counted rather than added: `npx vitest run --project node` collected `Test Files (263)` and
+   * `Tests 3805 passed | 2 skipped | 5 failed (3812)`. **The 5 failures are unrelated to this
+   * plan's SUBJECT, and three of them were this plan's own regression, already fixed in the
+   * same commit**: `packages/node/src/reachability.node.test.ts` carried three assertions
+   * hardcoded against `ENTRY_POINTS.length === 6` (`toBe(6)`, a roots-count `toBe(6)`, a wider
+   * roots-count `toBe(9)`) — this plan raised `ENTRY_POINTS` to 8 members
+   * (`worker-eu.ts`/`worker-sam.ts`) in `reachability.ts`, and those three counts moved to 8, 8
+   * and 11 in this same file. Re-run alone: 37/37 green. The other two —
+   * `packages/node/src/closed-fabric-agents.node.test.ts` (passes alone, 7/7, on a quiet host;
+   * the full run's own banner reported the host OVERSUBSCRIBED at load/core 5.79) and
+   * `packages/node/src/requirements-ledger.node.test.ts` (the same dated `AOT-03` stale-promise
+   * finding every commit this session already surfaced as "outside this commit, not blocking")
+   * — are neither in `packages/cloudflare` nor name anything this plan touches. `3812 - 3802 =
+   * 10` agrees with the ten cases named above.
+   */
   files: 263,
-  tests: 3802,
+  tests: 3812,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus

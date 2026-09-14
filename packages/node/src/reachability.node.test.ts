@@ -249,7 +249,7 @@ describe('the corpus: every callable export the eight barrels publish', () => {
     expect(homeless).toEqual([])
   }, GRAPH_TIMEOUT_MS)
 
-  it('names six entry-point modules that exist on disk', () => {
+  it('names eight entry-point modules that exist on disk', () => {
     // Task 2 roots its graph here. A typo in one of these paths would silently remove a root
     // and turn a large part of the tree unreachable, which reads exactly like a real finding.
     //
@@ -258,7 +258,12 @@ describe('the corpus: every callable export the eight barrels publish', () => {
     // OUT — they are defensible because *"adding them changes no barrel verdict"* — which is
     // false for the Worker: it is the only caller `@o2/cloudflare`'s barrel has. The count is
     // asserted rather than derived so that a sixth arriving by accident is as loud as a typo.
-    expect(ENTRY_POINTS.length).toBe(6)
+    //
+    // **6 -> 8 on 2026-09-13 (Phase 33, plan 02)**, `packages/cloudflare/src/worker-eu.ts` and
+    // `worker-sam.ts` — each a deployed Worker's own `"main"`, on the identical footing the
+    // sixth was added under. The orphan-module guard in `reachability-guard.node.test.ts`
+    // caught their absence the moment they were added, exactly as it exists to do.
+    expect(ENTRY_POINTS.length).toBe(8)
     for (const entry of ENTRY_POINTS) {
       expect(existsSync(join(ROOT, entry)), `${entry} is named as an entry point but is not on disk`).toBe(true)
     }
@@ -471,7 +476,7 @@ describe('the call graph: a path through functions, not through modules', () => 
     expect(built.files.length).toBeGreaterThanOrEqual(FILE_FLOOR)
     expect(built.nodes.size).toBeGreaterThanOrEqual(NODE_FLOOR)
     expect(built.calls.size).toBeGreaterThanOrEqual(CALLER_FLOOR)
-    expect(built.roots.length).toBe(6) // 5 -> 6 on 2026-08-26; see the entry-point case above
+    expect(built.roots.length).toBe(8) // 5 -> 6 on 2026-08-26, 6 -> 8 on 2026-09-13; see the entry-point case above
     // Specs are outside the graph on purpose: a test calling something does not make it
     // entry-point reachable, and counting it would make this whole file vacuous.
     expect(built.files.filter((file) => file.endsWith('.test.ts'))).toEqual([])
@@ -807,7 +812,10 @@ describe('each edge class is load-bearing — one ablation per class', () => {
     })
     // 8 -> 9 on 2026-08-26: `ENTRY_POINTS` gained `packages/cloudflare/src/worker.ts` and
     // this graph is that set plus the same three runnable-but-absent modules.
-    expect(wider.roots.length).toBe(9)
+    // 9 -> 11 on 2026-09-13 (Phase 33, plan 02): `ENTRY_POINTS` gained `worker-eu.ts` and
+    // `worker-sam.ts`, so 8 + 3 = 11. Neither entry reaches any of the three runnable modules
+    // below, so the `rescued` set asserted further down is unaffected by this move.
+    expect(wider.roots.length).toBe(11)
 
     const reachedWide = reachableFrom(wider.calls, wider.roots)
     const reachedFive = reachableFrom(graph().calls, graph().roots)

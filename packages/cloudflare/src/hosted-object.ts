@@ -109,10 +109,10 @@ export const HOSTED_JURISDICTION: Record<'eu', DurableObjectJurisdiction> = { eu
 /**
  * The location-hint set, closed in source because the platform closes nothing.
  *
- * Measured 2026-09-13 against a local `workerd`: `namespace.get(id, { locationHint:
- * 'notareal' })` was accepted and returned a live stub — the platform validates no hint value
- * at all. This set, and {@link UnknownLocationHintError}, are the only refusal of a mistyped
- * hint that exists anywhere in this system.
+ * Measured 2026-09-13 against a local `workerd`: passing `{ locationHint: 'notareal' }` as the
+ * options a stub is obtained with was accepted and returned a live stub — the platform
+ * validates no hint value at all. This set, and {@link UnknownLocationHintError}, are the only
+ * refusal of a mistyped hint that exists anywhere in this system.
  */
 export const HOSTED_LOCATION_HINT = { sam: 'sam' } as const
 
@@ -195,9 +195,9 @@ export class UnknownLocationHintError extends Error {
  * linear in a path that runs on every request.
  *
  * **The third argument is passed through untouched, with no branch on it.** Measured
- * 2026-09-13 against a local `workerd`: `namespace.get(id, undefined)` is accepted and returns
- * a live stub, so an `if (options)` here would be a branch guarding nothing — the platform
- * already treats "no options given" and "an explicit `undefined`" identically. The difference
+ * 2026-09-13 against a local `workerd`: obtaining a stub with an explicit `undefined` in that
+ * position returns a live stub, identically to omitting the argument entirely — so an
+ * `if (options)` here would be a branch guarding nothing. The difference
  * between the three placements is carried entirely by what the CALLER hands to this function
  * ({@link euJurisdictionOf} narrowing `namespace` first, or {@link samLocationHint} supplying
  * `options`), never by a branch inside it.
