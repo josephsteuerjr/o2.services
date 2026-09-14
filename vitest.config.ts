@@ -735,8 +735,30 @@ const NODE_MEASUREMENT = {
    * rather than left to be inferred, because this plan's own task text requires both arriving
    * files to be named beside this count, even the one that moves nothing in it.
    */
-  files: 264,
-  tests: 3820,
+  /**
+   * **`files` 264 -> 265 and `tests` 3820 -> 3838 on 2026-09-13 (Phase 33, plan 04).** One
+   * new file, `packages/node/src/location-claims.node.test.ts` — HOST-07's guard, the term
+   * list and matcher `location-claims.ts` shares with it. Eighteen cases arrived with it.
+   * Counted rather than added: `npx vitest run --project node` collected `Test Files 2
+   * failed | 263 passed (265)` and `Tests 3 failed | 3833 passed | 2 skipped (3838)`. **The
+   * 3 failures are unrelated to this plan and none is in this plan's two files**:
+   * `packages/node/src/requirements-ledger.node.test.ts` is the same dated `AOT-03`
+   * stale-promise finding every commit this phase has already surfaced as "outside this
+   * commit, not blocking", and `packages/node/src/switch-observation.node.test.ts` carries
+   * two cases that failed only inside the full run — re-run alone, on the same
+   * still-oversubscribed host: 25/25 green, attributed by isolated re-run rather than by
+   * plausibility. `3838 - 3820 = 18` agrees with the eighteen cases named above.
+   *
+   * One transient defect in THIS plan's own commit was caught by this same full run before
+   * it was fixed, named here rather than only in the plan's summary: the new spec's own
+   * docblock named an identifier by mistake that a DIFFERENT, pre-existing guard
+   * (`hosted-tier-deploy.node.test.ts`'s two-file closed-set check) also scans the tracked
+   * tree for, and the new file's prose became the count's third file. Reworded once, without
+   * naming that identifier, and the pre-existing guard returned to its own two-file count —
+   * unrelated to and untouched otherwise.
+   */
+  files: 265,
+  tests: 3838,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1085,6 +1107,20 @@ const NODE_MEASUREMENT = {
    * order that made the guard transiently correct about a state that was mid-edit, not a
    * finding about anything else. Re-run after `files` moved to 264 and the file was staged:
    * clean.
+   */
+  /**
+   * **Neither `unitFiles` nor `unitTests` moved on 2026-09-13 (Phase 33, plan 04), and that
+   * is an identity holding rather than an omission — the same shape as the entry above.**
+   * `location-claims.node.test.ts` (see the `tests`/`files` note above) was measured by
+   * comparative delta rather than by a single absolute reading — the host was extremely
+   * oversubscribed for the whole of this session — and every reading cleared
+   * `SLOW_CUTOFF_MS`, so it was added to `MEASURED_NODE_SPANS` and excluded from the unit
+   * lane. `files` moved 264 -> 265 and `excludedInNode` moved 82 -> 83 by the same one file,
+   * so the identity `unitFiles === files - excludedInNode` gives `265 - 83 = 182`, unchanged.
+   * Confirmed behaviourally: `O2_UNIT_ONLY=1 npx vitest run --project node` collected `Test
+   * Files 1 failed | 181 passed (182)` — the new file genuinely absent from the list — and
+   * `Tests 1 failed | 3073 passed (3074)`. The one failure is the same dated
+   * `requirements-ledger/stale-promise` `AOT-03` finding named above, unrelated to this plan.
    */
   unitFiles: 182,
   unitTests: 3074,
@@ -1696,6 +1732,24 @@ const MEASURED_NODE_SPANS: readonly (readonly [string, number])[] = [
   ['packages/node/src/rendezvous-wire.node.test.ts', 1_662],
   ['packages/node/src/platform-geolocation.node.test.ts', 1_592],
   ['packages/node/src/node-identity.node.test.ts', 1_503],
+  // Added 2026-09-13 (Phase 33, plan 04). NOT measured the way every entry above it was —
+  // the host was extremely oversubscribed for the whole of this session (load average
+  // 37-105 against an 8-core ceiling, `uptime` read directly rather than inferred), so no
+  // single absolute reading here would mean anything. Measured as a COMPARATIVE DELTA
+  // instead, on `CLAUDE.md`'s own "prefer a comparative reading" rule: three back-to-back
+  // solo pairs of [this file] minus [`disclosure-gate.node.test.ts`, a fast file with no
+  // top-level tree read, as the shared-startup baseline] gave wall-clock deltas of 1_480,
+  // 1_650 and 2_090 ms, and `user`-time deltas of 1_100, 1_030 and 1_240 ms — the CPU-time
+  // reading is the one this file's own convention says to trust on a contended host, and
+  // all three clustered inside 1.0-1.2 s regardless of the wall-clock spread. Recorded at
+  // the LOWEST wall-clock reading, same convention `jurisdiction-closed.node.test.ts`'s
+  // entry used: the number is provisional, but three independent readings agree on the
+  // one thing that matters here, which is that this file clears `SLOW_CUTOFF_MS` and does
+  // NOT belong in the unit lane. The mechanism is the one `vocabulary.node.test.ts`'s own
+  // entry names: a spec that reads the tracked tree in a top-level constant pays for it in
+  // `collectDuration`, which this file's own `scanRepository()` call does. Worth
+  // re-measuring on a quiet host for precision, not for the slow/fast verdict.
+  ['packages/node/src/location-claims.node.test.ts', 1_480],
   ['packages/node/src/start-unwind.node.test.ts', 1_322],
   ['packages/node/src/relayed-job.node.test.ts', 1_317],
   ['packages/core/src/enrollment.test.ts', 1_288],
