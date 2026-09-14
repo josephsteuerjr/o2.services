@@ -727,6 +727,13 @@ const NODE_MEASUREMENT = {
    * stale-promise finding every commit this phase has already surfaced as "outside this
    * commit, not blocking", reproduced identically in isolation. `3820 - 3812 = 8` agrees with
    * the eight cases named above.
+   *
+   * **The other file this plan adds, `packages/cloudflare/src/placement-runtime.e2e.test.ts`,
+   * moves NEITHER of these two fields.** It runs in the `e2e` project, and `files`/`tests`
+   * here track the `node` project only — every prior dated note in this pair of fields names
+   * `npx vitest run --project node`, never `--project e2e`, as its counting command. Named here
+   * rather than left to be inferred, because this plan's own task text requires both arriving
+   * files to be named beside this count, even the one that moves nothing in it.
    */
   files: 264,
   tests: 3820,

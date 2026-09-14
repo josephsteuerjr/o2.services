@@ -93,7 +93,13 @@ completed: 2026-09-14
   `type _Exhaustive = Assert<[Unlisted] extends [never] ? true : false>` declaration is present
   in the exact form this plan mandates, and the array-typed form the plan forbids
   (`_exhaustive: Unlisted[]`, measured silent on both a clean and a widened union) does not
-  appear anywhere in the file — confirmed by grep as its own acceptance criterion.
+  appear anywhere in the file — confirmed by grep as its own acceptance criterion (re-checked
+  against the committed blob: `0`). The refusal's exact first diagnostic line, verbatim, probe
+  path trimmed to the probe-relative form (the temp-directory prefix is per-run and not
+  reproducible):
+  ```
+  probe.ts(3,7): error TS2322: Type '"sam"' is not assignable to type 'DurableObjectJurisdiction'.
+  ```
 - `packages/cloudflare/src/placement-runtime.e2e.test.ts`: a throwaway scratch worker (its own
   Durable Object class, `wrangler.jsonc`, `worker.ts` — none of it this repository's own
   `worker.ts`) on a local `wrangler dev` at port 8835. Six cases record that
@@ -200,9 +206,10 @@ re-run — attributed to host contention by measurement, the full run's own bann
 the host oversubscribed), `packages/node/src/requirements-ledger.node.test.ts` (the same dated
 `AOT-03` stale-promise finding every commit in this phase has already surfaced as "outside this
 commit, not blocking" — reproduced identically in isolation), and
-`packages/browser/src/nostr-bootstrap.test.ts` (a pre-existing flake, neither in
-`packages/cloudflare` nor touched by this plan). None names anything this plan created or
-modified.
+`packages/browser/src/nostr-bootstrap.test.ts` — re-run alone rather than assumed:
+`npx vitest run --project node packages/browser/src/nostr-bootstrap.test.ts` passed 29/29 on a
+quiet host, confirming the full-sweep failure was host contention and not a real defect. None
+of the four names anything this plan created or modified.
 
 ## Plant Proofs
 
