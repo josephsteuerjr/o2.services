@@ -36,17 +36,40 @@
 #    from `SERVED_BY` rather than typed by whoever remembers, the operator key is required
 #    before a single request is spent, and `killSwitch.operable` is read back off the deployed
 #    node afterwards.
+# 6. **One region per invocation, and the alert precedes the first real `get()`.** Added
+#    2026-09-13 with Phase 33's two further regions. `--config` selects exactly one of a
+#    closed, three-member list — never a loop over it, so one approval cannot become three
+#    bills. And `HOST-10`'s ordering — the billing alert precedes the first Durable Object —
+#    is read back before the first `--live` of a configuration that has never been deployed,
+#    because that ordering can only be lost once per resource and has already been lost once,
+#    permanently, for `bootstrap-us`.
 #
 # ## Usage
 #
-#   scripts/deploy-hosted.sh                 # dry run: gate + build, deploys nothing
-#   scripts/deploy-hosted.sh --live          # the real thing
-#   scripts/deploy-hosted.sh --live --skip-tests   # only when the gate just ran; says so loudly
-#   scripts/deploy-hosted.sh --verify-only   # read the deployed node's identity and stop
+#   scripts/deploy-hosted.sh                                  # dry run: gate + build, deploys nothing
+#   scripts/deploy-hosted.sh --config <path>                  # dry run against a NAMED configuration
+#   scripts/deploy-hosted.sh --live                           # the real thing, for wrangler.jsonc (us)
+#   scripts/deploy-hosted.sh --live --config <path> --alert-configured <n>
+#                                                              # the real thing, for a NEVER-DEPLOYED
+#                                                              # configuration — see HOST-10 below
+#   scripts/deploy-hosted.sh --live --skip-tests              # only when the gate just ran; says so loudly
+#   scripts/deploy-hosted.sh --verify-only                    # read the deployed node's identity and stop
 #
 # There is no `--region` flag, deliberately. See "Which region this deployment labels itself
 # with" below: a flag is a thing that can be forgotten, and forgetting it is the defect this
-# script now exists to make impossible.
+# script now exists to make impossible. `--config` selects a CONFIGURATION, never a region
+# directly — the region is still derived from whatever that configuration's own entry module
+# declares, never typed twice.
+#
+# **`--config` takes exactly one path from a closed, three-member allow-list, and exactly once
+# per invocation.** A second `--config` on one command line is refused rather than accepted as
+# a list to loop over: one approval must not silently become three bills, so this script never
+# deploys more than one configuration in one run — run it once per region instead.
+#
+# **`--alert-configured <threshold>` is required only for the first `--live` of a configuration
+# that has never been deployed**, per `HOST-10`. It is refused on every OTHER invocation
+# (`--dry-run`, `--verify-only`, or `--live` against a configuration that already has a live
+# deployment) needing no such argument, and `--dry-run` reads no account state to decide that.
 #
 # Requires `CLOUDFLARE_API_TOKEN` for `--live`. `--dry-run` needs no credential — measured, it
 # exits 0 on a machine with none configured.
@@ -57,28 +80,78 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 PACKAGE="packages/cloudflare"
-CONFIG="$PACKAGE/wrangler.jsonc"
 
 # The account's other scripts, by prefix. Refused rather than merely documented: the whole
 # cost of getting a name wrong here is somebody else's production worker.
 FORBIDDEN_PREFIX='ocr-checks-worker'
 
+# The closed, three-member set of configurations this script may ever act on — Phase 33,
+# `T-33-09`. An arbitrary `--config` path would let a configuration outside review reach a
+# live deploy; this literal list IS what "outside review" means here. A fourth region is a
+# source edit to this array and a code review, on the same discipline `HOSTED_OBJECT_NAME`'s
+# own closed set states for itself.
+ALLOWED_CONFIGS=(
+  "packages/cloudflare/wrangler.jsonc"
+  "packages/cloudflare/wrangler.eu.jsonc"
+  "packages/cloudflare/wrangler.sam.jsonc"
+)
+
 LIVE=0
 SKIP_TESTS=0
 VERIFY_ONLY=0
+CONFIG=""
+CONFIG_GIVEN=0
+ALERT_CONFIGURED=""
 
-for arg in "$@"; do
-  case "$arg" in
-    --live) LIVE=1 ;;
-    --dry-run) LIVE=0 ;;
-    --skip-tests) SKIP_TESTS=1 ;;
-    --verify-only) VERIFY_ONLY=1 ;;
+# A `while`/`shift` loop rather than `for arg in "$@"`, because `--config` and
+# `--alert-configured` each take a following argument and a `for` over a flat arg list cannot
+# consume one.
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --live) LIVE=1; shift ;;
+    --dry-run) LIVE=0; shift ;;
+    --skip-tests) SKIP_TESTS=1; shift ;;
+    --verify-only) VERIFY_ONLY=1; shift ;;
+    --config)
+      # **Refused rather than looped over.** Write no loop over the three configurations here:
+      # a second `--config` on one invocation would let one approval become three bills, and
+      # Cloudflare has no hard spending ceiling to catch it if it did.
+      if [ "$CONFIG_GIVEN" = 1 ]; then
+        echo "❌ REFUSED: a second --config on one invocation." >&2
+        echo "   One approval must not become three bills — run this script once per region." >&2
+        exit 2
+      fi
+      CONFIG_GIVEN=1
+      CONFIG="${2:-}"
+      shift 2
+      ;;
+    --alert-configured)
+      ALERT_CONFIGURED="${2:-}"
+      shift 2
+      ;;
     # Every leading comment line, stopping at the first that is not one. A line range drifts
     # the moment the header grows — and it had, silently, before this was written.
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
-    *) echo "❌ unknown argument: $arg" >&2; exit 2 ;;
+    *) echo "❌ unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+[ -n "$CONFIG" ] || CONFIG="packages/cloudflare/wrangler.jsonc"
+
+CONFIG_ALLOWED=0
+for allowed in "${ALLOWED_CONFIGS[@]}"; do
+  [ "$CONFIG" = "$allowed" ] && CONFIG_ALLOWED=1
+done
+if [ "$CONFIG_ALLOWED" != 1 ]; then
+  echo "❌ REFUSED: '$CONFIG' is not one of the three configurations this script may deploy:" >&2
+  printf '     %s\n' "${ALLOWED_CONFIGS[@]}" >&2
+  exit 1
+fi
+
+# wrangler's own `--config` wants a path relative to the cwd it is invoked from, and every
+# wrangler invocation below runs with `cwd="$PACKAGE"` — so this is the basename, not `$CONFIG`
+# itself, which still carries the repo-root-relative path this script's own checks read.
+CONFIG_BASENAME="$(basename "$CONFIG")"
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
@@ -113,10 +186,11 @@ esac
 # Which region this deployment labels itself with — DERIVED, never typed
 # ---------------------------------------------------------------------------
 #
-# **There is no `--region` flag and there must not be one.** The label is read out of
-# `worker.ts`'s `SERVED_BY`, which is the constant the fetch handler passes to `stubFor` — so it
-# is not a name somebody chose for this deploy, it is *the name every request that reaches this
-# object was routed under*. Deriving it makes two values one:
+# **There is no `--region` flag and there must not be one.** The label is read out of the
+# SELECTED configuration's own entry module's `SERVED_BY` — the constant that module's fetch
+# handler passes to `stubFor` — so it is not a name somebody chose for this deploy, it is *the
+# name every request that reaches this object was routed under*. Deriving it makes two values
+# one:
 #
 #   - a flag can be forgotten, and on 2026-09-07 it had been, on every deploy there had ever
 #     been. `.github/workflows/deploy.yml` runs this script with no arguments but `--live`, so
@@ -125,6 +199,11 @@ esac
 #     to and `SERVED_BY` is the object that receives the traffic; a deploy that labelled the
 #     object `bootstrap-eu` while routing to `bootstrap-us` would answer every reading correctly
 #     and refuse every halt an operator ever sent it.
+#
+# **Derived from the SELECTED configuration, not from `worker.ts` unconditionally** — added
+# 2026-09-13 with `--config`. Reading `worker.ts` regardless of which configuration was chosen
+# would make every `--config wrangler.eu.jsonc` invocation still label itself `bootstrap-us`,
+# which is exactly the label-routes-to-different-object mismatch the paragraph above refuses.
 #
 # Narrowed against the same closed set `narrowRegion` narrows against, read from the same file
 # that declares it. A `SERVED_BY` outside that set is refused HERE rather than becoming an
@@ -137,16 +216,32 @@ declared_region_names() {
     tr -d "'"
 }
 
-# `|| true` on both: under `pipefail` a `grep` that matches nothing kills the script with no
-# message, and a missing constant deserves the sentence below rather than a silent exit 1.
+# The selected configuration's own `"main"` — never `worker.ts` unconditionally. `|| true`:
+# under `pipefail` a `grep` that matches nothing kills the script with no message, and a
+# missing key deserves the sentence below rather than a silent exit 1.
+MAIN_MODULE="$(
+  grep -oE '"main"[[:space:]]*:[[:space:]]*"[^"]+"' "$CONFIG" |
+    head -1 |
+    sed 's/.*"\([^"]*\)"$/\1/' || true
+)"
+
+if [ -z "$MAIN_MODULE" ]; then
+  echo "❌ could not read \"main\" from $CONFIG." >&2
+  echo "   That key names the entry module this configuration deploys, and it is where the" >&2
+  echo "   region label for THIS run is derived from." >&2
+  exit 1
+fi
+
+ENTRY_MODULE="$PACKAGE/$MAIN_MODULE"
+
 REGION="$(
-  grep -oE "^const SERVED_BY: HostedObjectName = '[^']+'" "$SOURCE_DIR/worker.ts" |
+  grep -oE "^const SERVED_BY: HostedObjectName = '[^']+'" "$ENTRY_MODULE" |
     head -1 |
     sed "s/.*'\([^']*\)'.*/\1/" || true
 )"
 
 if [ -z "$REGION" ]; then
-  echo "❌ could not read SERVED_BY from $SOURCE_DIR/worker.ts." >&2
+  echo "❌ could not read SERVED_BY from $ENTRY_MODULE." >&2
   echo "   That constant is the object every request is routed to, and it is where this" >&2
   echo "   deploy takes its region label from. Without it the deploy would produce a node" >&2
   echo "   that reports region: null and refuses every halt — which is what happened before" >&2
@@ -332,6 +427,7 @@ else
   # `--var` added a var rather than replacing the file's.
   say "3/3  the bundle builds"
   ( cd "$PACKAGE" && WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run \
+      --config "$CONFIG_BASENAME" \
       --var "O2_VERSION:$VERSION" --var "O2_REGION:$REGION" $ENROLMENT_VARS --outdir="$(mktemp -d)" )
 fi
 
@@ -348,6 +444,64 @@ fi
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
   echo "❌ --live needs CLOUDFLARE_API_TOKEN in the environment." >&2
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# HOST-10 — the alert precedes the first real get(), and it can only be lost once
+# ---------------------------------------------------------------------------
+#
+# **Ordering, not instrumentation.** `.planning/REQUIREMENTS.md:2197`'s `HOST-10` row is the
+# ledger's first `Refuted` verdict: the billing alert was supposed to precede the deploy log
+# that created `bootstrap-us`, it did not, and no LATER alert makes that true — the ordering
+# can only be lost once per resource. Three more resources are about to exist under this
+# script, so the check moves here, before the one call that could create one of them.
+#
+# **The version to roll back TO, captured before anything replaces it — and, from 2026-09-13,
+# also the read this gate uses to ask "has this configuration ever been deployed at all?".**
+# One `wrangler deployments list` call answers both questions, so the gate costs no second
+# network round trip beyond what this script already made.
+#
+# `|| true`: a first-ever deploy has no previous version, and that is not an error. It does
+# mean there is nothing to roll back to, which the failure path below says out loud rather
+# than discovering — and it is also exactly the condition `HOST-10`'s gate below is watching
+# for, under a different name.
+PREVIOUS_VERSION="$(
+  cd "$PACKAGE" &&
+    WRANGLER_SEND_METRICS=false npx wrangler deployments list --name "$SCRIPT_NAME" 2>/dev/null |
+    grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' |
+    head -1 || true
+)"
+
+# **Any answer that is not a live deployment id is treated as never-deployed — failing TOWARD
+# asking rather than toward skipping the gate.** A credential that cannot list deployments at
+# all lands here too, on the same reasoning `require_configured_secrets` states for itself: an
+# instrument that cannot read is not evidence the resource already exists.
+if [ -z "$PREVIOUS_VERSION" ]; then
+  if [ -z "$ALERT_CONFIGURED" ]; then
+    echo "" >&2
+    echo "❌ REFUSED: HOST-10 — '$SCRIPT_NAME' has never been deployed, and this invocation" >&2
+    echo "   carries no --alert-configured threshold." >&2
+    echo "" >&2
+    echo "   Cloudflare has no hard spending ceiling — its own wording for budget alerts is" >&2
+    echo "   \"informational only. It does not cap your usage.\" The ordering that matters —" >&2
+    echo "   the alert configured BEFORE the first Durable Object — can only be lost once per" >&2
+    echo "   resource, and it has already been lost once, permanently, for bootstrap-us." >&2
+    echo "" >&2
+    echo "   Configure the alert first (.planning/OWNER-ACTIONS.md row 1), then say what" >&2
+    echo "   threshold means stop — the same figures that row and row 2 already carry:" >&2
+    echo "     ≈ \$5/month per always-on object, ≈ \$15/month for three" >&2
+    echo "     (128 MB ⇒ 331 776 GB-s/month against 400 000 included)" >&2
+    echo "     two regions also work, at two thirds the cost" >&2
+    echo "" >&2
+    echo "   Then: $0 $* --alert-configured <threshold>" >&2
+    echo "" >&2
+    echo "   Nothing was deployed." >&2
+    exit 1
+  fi
+  say "HOST-10: alert threshold '$ALERT_CONFIGURED' stated for '$SCRIPT_NAME', which has never been deployed."
+  echo "   Cloudflare's own wording still applies: budget alerts are informational only. It" >&2
+  echo "   does not cap usage — '$ALERT_CONFIGURED' is what THIS OPERATOR treats as the stop" >&2
+  echo "   signal, not a ceiling the platform enforces." >&2
 fi
 
 # ---------------------------------------------------------------------------
@@ -416,21 +570,10 @@ if [ -n "$HOST" ]; then
   BEFORE="$(read_identity "$HOST" 2>/dev/null || true)"
 fi
 
-# **The version to roll back TO, captured before anything replaces it.**
-#
-# Without this, a failed read-back left the bad version live and the operator holding an error
-# message — the deploy's own docblock said "roll back with wrangler rollback" and named no
-# version, which is a instruction to go and find one under time pressure.
-#
-# `|| true`: a first-ever deploy has no previous version, and that is not an error. It does
-# mean there is nothing to roll back to, which the failure path below says out loud rather
-# than discovering.
-PREVIOUS_VERSION="$(
-  cd "$PACKAGE" &&
-    WRANGLER_SEND_METRICS=false npx wrangler deployments list --name "$SCRIPT_NAME" 2>/dev/null |
-    grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' |
-    head -1 || true
-)"
+# The rollback target — `$PREVIOUS_VERSION` — was already read above, before the `HOST-10`
+# gate, on that section's own stated reason: one `wrangler deployments list` call answers both
+# "is this the first deploy" and "what do we roll back to", so it is read once rather than
+# twice.
 if [ -n "$PREVIOUS_VERSION" ]; then
   echo "   rollback target if this goes wrong: $PREVIOUS_VERSION"
 else
@@ -439,6 +582,7 @@ fi
 
 say "Deploying for real"
 ( cd "$PACKAGE" && WRANGLER_SEND_METRICS=false npx wrangler deploy \
+    --config "$CONFIG_BASENAME" \
     --var "O2_VERSION:$VERSION" --var "O2_REGION:$REGION" $ENROLMENT_VARS )
 
 # ---------------------------------------------------------------------------

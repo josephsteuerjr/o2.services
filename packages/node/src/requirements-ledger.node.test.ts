@@ -1030,8 +1030,25 @@ function witnessDrift(entry: UnreadRow): { arrived: string[]; departed: string[]
  * Two witnesses, measured by running the scan. What holds the row open is `39-09`, the run's own
  * staging, plus a precondition newly in doubt: an object whose region is `null` refuses every
  * halt, so the kill switch criterion 5 exercises may not be throwable at all.
+ *
+ * **Raised 7 -> 8 on 2026-09-14, in the commit that moved `NET-15` to `Partial`** (Phase 33,
+ * plan 33-05). This IS the fourth raise of the `experiment-not-run` shape the paragraph above
+ * named in advance, and the question it posed is answered here rather than deferred again:
+ * `experiment-not-run` is not split into its own count in this commit. The reason is scope, not
+ * disagreement — `requirements-ledger.node.test.ts` is not among plan 33-05's own
+ * `files_modified`, and this entry exists to unblock that plan's ledger edit, not to redesign
+ * the register that catches it. What is true and worth carrying forward: all four
+ * `experiment-not-run` raises (`NET-12`, `RUN-06`, `RUN-01`/`RUN-07`, now `NET-15`) name an act
+ * only an owner can perform against a real account, a real phone or a real deployed object —
+ * never a symbol nobody calls. A future plan touching this file should read the split proposed
+ * above before raising this ceiling a fifth time. `NET-15`'s own open leg is exactly that shape:
+ * criterion 3's live reading against three SITED objects and criterion 4's cross-region
+ * dialability on the real fabric, both gated on `HOST-06`'s own owner act (creation), which this
+ * phase's plans 33-01 through 33-04 built and configured without performing.
+ *
+ * Two witnesses, measured by running the scan.
  */
-const REREAD_REGISTER_CEILING = 7
+const REREAD_REGISTER_CEILING = 8
 
 /**
  * ## The rule this list encodes
@@ -1772,6 +1789,15 @@ const REREAD_REGISTER: readonly UnreadRow[] = [
   // physical wall. The bucket is unchanged — `experiment-not-run` is exactly right, and now
   // for a checkable reason: the arrangement exists, the dispatch has not happened, and the
   // dispatch is an owner act because it is a push to a public repository.
+  //
+  // Re-read 2026-09-13 (Phase 33, plan 04), because this ledger's own stale-promise guard
+  // holds whoever edits this file answerable for it, and this plan's own commit edits
+  // `.planning/REQUIREMENTS.md` (to mark `HOST-07` Done). Read against the row and the three
+  // witnesses: nothing has moved since the 2026-08-30 reading. `.github/workflows/aot-cross-host.yml`
+  // is still `workflow_dispatch`-only and has not been dispatched, the row's verdict is still
+  // `Partial` for the reason the row itself states, and the dispatch is still an owner act
+  // because it is a push to a public repository — unrelated to and untouched by this plan,
+  // which does not deploy, dispatch a workflow, or read a Cloudflare account. Bucket unchanged.
   {
     // ── Added 2026-09-02 by Phase 34 (34-01), and the promise it carries is precise ──────
     //
@@ -1863,7 +1889,7 @@ const REREAD_REGISTER: readonly UnreadRow[] = [
   {
     id: 'AOT-03',
     because: 'experiment-not-run',
-    reread: '2026-08-30',
+    reread: '2026-09-13',
     witnesses: [
       'tools/aot/cross-host-lift.node.test.ts',
       'tools/aot/cross-host-workflow.node.test.ts',
@@ -1889,6 +1915,15 @@ const REREAD_REGISTER: readonly UnreadRow[] = [
     witnesses: [
       'packages/node/src/funnel-probe.e2e.test.ts',
       'packages/node/src/switch-observation.node.test.ts',
+    ],
+  },
+  {
+    id: 'NET-15',
+    because: 'experiment-not-run',
+    reread: '2026-09-14',
+    witnesses: [
+      'packages/cloudflare/src/region-loss-drill.e2e.test.ts',
+      'packages/node/src/region-loss-drill-schedule.node.test.ts',
     ],
   },
   // `AOT-04` was here until 2026-08-18 and is **REMOVED**, by the second of the two exits

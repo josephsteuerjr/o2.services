@@ -52,6 +52,34 @@ the binding **`eu` jurisdiction**; `bootstrap-sam` carries a **`locationHint` on
 no South-American jurisdiction value exists — and a plan passing `sam` as a jurisdiction is
 watched failing at creation, which is itself a criterion.
 
+**AGENT-SIDE HALF COMPLETE, 2026-09-13 — Phase 33 plan 02.** All three configurations exist
+and build under `--dry-run` with no credential:
+
+| Region | Configuration | Entry module |
+|---|---|---|
+| `us` (already live) | `packages/cloudflare/wrangler.jsonc` | `src/worker.ts` |
+| `eu` | `packages/cloudflare/wrangler.eu.jsonc` | `src/worker-eu.ts` |
+| `sam` | `packages/cloudflare/wrangler.sam.jsonc` | `src/worker-sam.ts` |
+
+`scripts/deploy-hosted.sh` now takes exactly one `--config <path>` per invocation from that
+closed list (a second `--config` on one run is refused, so one approval cannot become three
+bills) and derives the region label from the SELECTED configuration's own entry module — never
+from a flag. The exact command per region, once the alert below is configured:
+
+```
+scripts/deploy-hosted.sh --live --config packages/cloudflare/wrangler.eu.jsonc  --alert-configured <n>
+scripts/deploy-hosted.sh --live --config packages/cloudflare/wrangler.sam.jsonc --alert-configured <n>
+```
+
+`--alert-configured <n>` is required only the FIRST time a given configuration is deployed live
+— `HOST-10`'s ordering, read back off the account before that call, refusing rather than
+guessing when it cannot be read. It is not required for `us`, which already has a live
+deployment, or for any `--dry-run`.
+
+**The first `get()` — whoever runs the `--live` command above — is the irreversible act.** It
+is what creates the object, fixes its placement forever, and starts the ≈$5/month meter. Reading
+this table does not create anything; running the command does.
+
 **What to say back:** the budget is approved for N regions, and who runs the deploy.
 
 ---
