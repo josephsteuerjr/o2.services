@@ -813,6 +813,18 @@ export interface ShardResult {
    * A reader comparing it against `performance.now()` spans must convert one of the two;
    * they are different origins, not different precisions.
    *
+   * **AMENDED 2026-09-14 — converting is necessary and NOT sufficient, and the advice above
+   * sent a reader into the gap.** With the default clock the two are also different **clock
+   * sources**: this field is the wall clock, `performance.now()` is the monotonic one, and
+   * `performance.timeOrigin` relates them only at process start. They diverge afterwards —
+   * measured at **3.075 ppm**, about 20 us at 7 s and 63 us at 18 s of process life. So a
+   * converted `judgedAt` can land *after* an instant that genuinely followed it, and an
+   * ordering assertion built on the conversion fails on correct code: it did, about 1 run in
+   * 13, in `packages/node/src/speculation-agents.node.test.ts`. **A reader that needs to order
+   * this field against a monotonic span must supply a `JobClock` reading the monotonic source**
+   * — that spec's `FIXTURE_CLOCK` is the worked example — rather than converting and hoping.
+   * Working: `.planning/debug/speculation-judgedat-ordering-intermittent.md`.
+   *
    * `judgedAt !== null` exactly when {@link ShardResult.speculated} is `true`: both are
    * set at the one site that starts a copy. A shard the loop left at the eligibility gate
    * — the sovereign case with no spare node — never reached the straggler test at all,
