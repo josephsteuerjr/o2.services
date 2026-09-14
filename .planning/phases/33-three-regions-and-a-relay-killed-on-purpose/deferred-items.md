@@ -43,3 +43,45 @@ references into one program) exits `0` with zero output on this same tree, after
 33-01's tasks. The six errors exist only when `packages/cloudflare` is type-checked in
 isolation from `packages/browser`, which is where `Window.o2` is declared. Recorded here rather
 than acted on for the same scope-boundary reason above.
+
+## `gsd-sdk query state.advance-plan` returns an error AND STILL DELETES CONTENT — measured 2026-09-13, plan 33-02
+
+**Do not run this command against this repository's `STATE.md` again without first reading this
+note.** During 33-02's execution, the standard `<state_updates>` workflow step was attempted:
+
+```
+gsd-sdk query state.advance-plan
+```
+
+It returned `{"error": "Cannot parse Current Plan or Total Plans in Phase from STATE.md"}` —
+which reads, on its face, like a read-only failure that touched nothing. **It is not.**
+`git diff --stat -- .planning/STATE.md` immediately afterward showed `442 +----`, i.e. the
+command had deleted 435 of the file's ~442 lines and left 7, despite returning an error rather
+than a success. Caught by measurement rather than trusted from the return value — exactly the
+class of check `CLAUDE.md` § Proofs and § Measurement ask for, and exactly the failure mode this
+phase's own instructions warned about in advance: *"Do not touch `.planning/STATE.md`. Its
+YAML frontmatter is hand-written and the GSD tooling has wiped it twice."* This is the third
+time.
+
+**Recovery**: `git checkout -- .planning/STATE.md` immediately, before staging or committing
+anything else, restored the file byte-for-byte (confirmed via `git diff --stat` reading empty
+afterward). This is the narrow, sanctioned use of `git checkout --` on a file the agent did not
+intend to modify — not a blanket revert.
+
+**Consequence for this plan and the next agent to reach this workflow step**: every `state.*`
+gsd-sdk command (`state.advance-plan`, `state.update-progress`, `state.record-metric`,
+`state.add-decision`, `state.record-session`, `state.add-blocker`) was skipped entirely for
+33-02, on the reasoning that having measured one command in the family destroy the file despite
+an error return, the others in the same family are not trusted absent the same direct
+measurement. `.planning/STATE.md` was left exactly as wave 1 (33-01) left it. `roadmap
+update-plan-progress` and `requirements mark-complete` were NOT skipped — they were run with a
+`diff` against a pre-command snapshot taken first, and both were confirmed no-ops or correctly
+scoped before being trusted.
+
+**For whoever picks this up**: the underlying defect is in the `gsd-sdk` CLI's `state.*`
+handler family, not in this repository's `STATE.md` content — the error message names a parse
+failure against a format `STATE.md`'s hand-written frontmatter does not follow (it carries
+`total_plans`/`completed_plans` counters rather than whatever `Current Plan`/`Total Plans in
+Phase` keys the tool expects), and the handler apparently writes a truncated/regenerated file
+as a side effect of failing to parse the existing one. Fixing the STATE.md update problem
+belongs in the `gsd-sdk` tooling, not in this phase's plans.

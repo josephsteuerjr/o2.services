@@ -785,12 +785,17 @@ describe('each edge class is load-bearing — one ablation per class', () => {
     expect(reached.has('packages/demo/src/pi.ts#estimatePi')).toBe(false)
   }, ABLATION_TIMEOUT_MS)
 
-  it('THE ENTRY SET NO LONGER HOLDS SILENTLY — it is now an owner question, and it moved to six', () => {
+  it('THE ENTRY SET NO LONGER HOLDS SILENTLY — it is now an owner question, and it moved to eight', () => {
     // **Retitled 2026-08-26.** It read "THE FIVE-MODULE ENTRY SET" and the set is six. The
     // case's subject never was the number — it is the DIFFERENCE between the declared set and
     // a wider one, so that neither the count nor the membership can drift without saying so —
     // and leaving "five" in the title while the array held six would have been this file
     // asserting one thing and naming another.
+    //
+    // **Retitled again 2026-09-13 (Phase 33, plan 02).** It read "moved to six" while
+    // `ENTRY_POINTS` held eight — the same defect this note already names, applied to itself.
+    // `worker-eu.ts`/`worker-sam.ts` moved the base set 6 -> 8, so the wider graph below moved
+    // 9 -> 11 for the same reason.
     // 22-CONTEXT.md pinned this reading on 2026-08-04: adding the three runnable-but-unnamed
     // modules "gains 4 modules and ZERO exclusive callable barrel exports, so no verdict changes
     // today", and instructed that when it stopped being true the pin should redden and the entry
