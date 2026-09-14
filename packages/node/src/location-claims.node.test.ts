@@ -425,7 +425,7 @@ describe('the repository scan is looking at the repository', () => {
 
 // ── Tier 1 — the published surface and the results ────────────────────────────────────────
 
-describe('Tier 1 — no listed place name survives on the published surface or in the results', () => {
+describe('HOST-07, Tier 1 — no listed place name survives on the published surface or in the results', () => {
   it('finds no term violation after the exemption layer', () => {
     expect(REPO.termClaims.map(render)).toEqual([])
   })
@@ -433,7 +433,7 @@ describe('Tier 1 — no listed place name survives on the published surface or i
 
 // ── Tier 2 — attribution, over the whole tracked tree ──────────────────────────────────────
 
-describe('Tier 2 — no region address is attributed a placement anywhere in the tracked tree', () => {
+describe('HOST-07, Tier 2 — no region address is attributed a placement anywhere in the tracked tree', () => {
   it('finds no attribution violation after the exemption layer', () => {
     expect(REPO.attributionClaims.map(render)).toEqual([])
   })
