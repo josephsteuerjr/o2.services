@@ -1772,6 +1772,15 @@ const REREAD_REGISTER: readonly UnreadRow[] = [
   // physical wall. The bucket is unchanged — `experiment-not-run` is exactly right, and now
   // for a checkable reason: the arrangement exists, the dispatch has not happened, and the
   // dispatch is an owner act because it is a push to a public repository.
+  //
+  // Re-read 2026-09-13 (Phase 33, plan 04), because this ledger's own stale-promise guard
+  // holds whoever edits this file answerable for it, and this plan's own commit edits
+  // `.planning/REQUIREMENTS.md` (to mark `HOST-07` Done). Read against the row and the three
+  // witnesses: nothing has moved since the 2026-08-30 reading. `.github/workflows/aot-cross-host.yml`
+  // is still `workflow_dispatch`-only and has not been dispatched, the row's verdict is still
+  // `Partial` for the reason the row itself states, and the dispatch is still an owner act
+  // because it is a push to a public repository — unrelated to and untouched by this plan,
+  // which does not deploy, dispatch a workflow, or read a Cloudflare account. Bucket unchanged.
   {
     // ── Added 2026-09-02 by Phase 34 (34-01), and the promise it carries is precise ──────
     //
@@ -1863,7 +1872,7 @@ const REREAD_REGISTER: readonly UnreadRow[] = [
   {
     id: 'AOT-03',
     because: 'experiment-not-run',
-    reread: '2026-08-30',
+    reread: '2026-09-13',
     witnesses: [
       'tools/aot/cross-host-lift.node.test.ts',
       'tools/aot/cross-host-workflow.node.test.ts',
