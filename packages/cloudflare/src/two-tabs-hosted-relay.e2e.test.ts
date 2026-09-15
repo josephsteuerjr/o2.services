@@ -149,6 +149,18 @@ const BUSY_ROUNDS = 38
  */
 const RELAY_SHARE_CEILING = 0.5
 
+/**
+ * The least the pair must have moved for the ratio below to mean anything.
+ *
+ * `share` divides by this quantity, so it is the denominator's floor rather than a second
+ * reading of the same property: a window that fitted too few rounds shrinks it while the relay's
+ * keep-alive drip does not move, and the ratio then climbs for a reason that has nothing to do
+ * with the data path. Three runs on an oversubscribed host each moved ~140 000 bytes across 38
+ * rounds, so 10 000 is an order of magnitude below what a working window produces — it fails a
+ * collapsed window, not a slow one.
+ */
+const PAIR_BYTES_FLOOR = 10_000
+
 interface Tab {
   readonly name: string
   readonly context: BrowserContext
@@ -470,16 +482,28 @@ describe('HOST-02 — two tabs meet through a hosted relay, which then leaves th
       `relay idle +${String(relayIdleDelta)} B, relay busy +${String(relayBusyDelta)} B, ` +
       `pair busy +${String(pairBusyDelta)} B`
 
-    // ---- positive control 3: the pair's own counter is alive ----
+    // ---- positive control 3: the pair's own counter is alive, and large enough to divide by ----
     //
     // Without this the verdict below is `something < 0`, false by arithmetic, and a broken
     // recorder would arrive as a clean result rather than as a finding.
+    //
+    // **The floor is the denominator's, and it is not cosmetic.** `share` divides by whatever
+    // the pair moved, so a host slow enough to fit only a handful of rounds into the window
+    // shrinks the denominator while the relay's keep-alive drip stays where it is — and the
+    // ratio climbs for a reason that is about the schedule, not about the data path. That
+    // failure would read as *the relay is carrying a share of the data path*, which is the one
+    // sentence this file must never say wrongly. So a run that did not move enough to divide by
+    // fails HERE, naming the rounds, rather than below naming the relay. Sited an order of
+    // magnitude under the three readings taken while writing this file — 140 580, 140 306 and
+    // 140 219 bytes across 38 rounds each — so it catches a collapsed window and not a slow one.
     expect(
       pairBusyDelta,
       `HOST-02: the pair moved ${String(pairBusyDelta)} bytes of its own across the busy window ` +
-        `of ${String(rounds)} rounds. Either the rounds did not run or getStats() is reading ` +
-        `nothing — so the comparison below has no denominator. ${reads}`,
-    ).toBeGreaterThan(0)
+        `of ${String(rounds)} rounds, under the ${String(PAIR_BYTES_FLOOR)} this comparison needs ` +
+        `to have a denominator worth dividing by. Either the rounds did not run, or getStats() is ` +
+        `reading nothing, or the host fitted too few rounds into the window — none of which is a ` +
+        `statement about the relay. ${reads}`,
+    ).toBeGreaterThan(PAIR_BYTES_FLOOR)
 
     // ---- THE VERDICT ----
     //
