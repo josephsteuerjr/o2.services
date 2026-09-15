@@ -787,8 +787,15 @@ const NODE_MEASUREMENT = {
    * `--project node` run, measured rather than assumed — it stayed green across that file's
    * arrival.
    */
-  files: 267,
-  tests: 3857,
+  /**
+   * **`files` 267 -> 268, `tests` 3857 -> 3861 on 2026-09-14.** One new node-lane file,
+   * `ledger-plan-staleness.node.test.ts`, carrying 4 cases — `3861 - 3857 = 4` agrees with the
+   * count and is not a substitute for it. It catches an open ledger row that names a DELIVERED
+   * plan as the work it still awaits, which is how `AUTH-06` reported itself blocked for eight
+   * days by a plan that had landed.
+   */
+  files: 268,
+  tests: 3861,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1176,8 +1183,16 @@ const NODE_MEASUREMENT = {
    *
    * `3093 - 3086 = 7` agrees with the seven cases the new file carries.
    */
-  unitFiles: 184,
-  unitTests: 3093,
+  /**
+   * **184 -> 185, 3093 -> 3097 on 2026-09-14**, with `ledger-plan-staleness.node.test.ts`.
+   * Measured rather than derived from the `files - excludedInNode` identity, because that
+   * identity is what the guard checks and a number satisfying its own check is not a reading:
+   * `O2_UNIT_ONLY=1 npx vitest run --project node` collected `Test Files 185 passed (185)` and
+   * `Tests 3097 passed (3097)` on a quiet host (load/core 1.06 before, 2.87 after) — green
+   * throughout, unlike the previous layer's run. `3097 - 3093 = 4` agrees with the four cases.
+   */
+  unitFiles: 185,
+  unitTests: 3097,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,
