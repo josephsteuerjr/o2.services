@@ -36,6 +36,51 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const SCRIPT_PATH = join(ROOT, 'scripts/deploy-hosted.sh')
 const SCRIPT = readFileSync(SCRIPT_PATH, 'utf8')
 
+/**
+ * The budget for the one case that EXECUTES a stub it just wrote, and the number is a
+ * measurement of the operating system rather than of this repository.
+ *
+ * **What was measured, on 2026-09-15.** macOS assesses a newly written executable the first
+ * time it is exec'd directly. On this host that assessment took **31.24 s / 34.18 s / 31.31 s**
+ * across three fresh stubs, with `XprotectService` at 81.4 % of a core throughout, against
+ * **0.01 s** for the second exec of the same file and **0.01 s** for `sh <path>`, which never
+ * exec's the file itself. Instrumented inside the case, the split is unambiguous: the sanity
+ * probe that runs the stub reached **37 308 ms** while `spawnSync` of the script under test
+ * took **866 ms**. The default 5 000 ms budget could not survive that and the case failed 2/2
+ * on a host its own `[host conditions]` banner called quiet (load/core 1.89).
+ *
+ * **Why a budget and not a cleverer fixture.** The script under test calls `curl` by name, so
+ * SOMETHING must exec the fresh stub; whichever exec is first pays the assessment, and moving
+ * the probe to `sh` only moves the cost into `spawnSync`. The alternative — a stub at a stable
+ * path so the assessment is cached between runs — buys speed with shared mutable state in a
+ * fixture whose whole point is that it is hermetic, and buys it for one machine: a healthy Mac
+ * assesses in well under a second and Linux CI has no XProtect at all.
+ *
+ * **The banner cannot see this, and that is worth knowing before the next attribution.**
+ * `tools/measure/host-conditions-reporter.ts` reads `loadavg()` and `cpus()` and nothing else,
+ * so a host that is idle on CPU while a scanner holds every new executable for half a minute
+ * reports as quiet. Three attributions made earlier the same day leaned on that banner.
+ *
+ * This is the only spec in the repository that writes an executable stub — measured, `0o755`
+ * appears in no other test file under any package's `src` — so the exposure is this one case.
+ * (Written without the glob on purpose: the literal would close this comment.)
+ *
+ * **The episode subsided, and saying so is the point of a measured comment.** Re-measured
+ * forty minutes later on the same host, three fresh stubs at fresh paths cost **0.20 s /
+ * 0.26 s / 0.35 s**, a fresh stub with never-before-seen content cost **0.27 s**, and
+ * `XprotectService` was no longer on the CPU list at all. So this budget covers an EPISODIC
+ * host condition — a scanner that was busy for some window and then was not — rather than a
+ * steady cost, and the case's own work is about a second. A reader who finds this budget
+ * looking absurdly loose is reading it correctly: it is loose on purpose, and it is loose
+ * against a number that was observed rather than imagined.
+ *
+ * **It is not plantable and that is stated rather than papered over.** A plant would have to
+ * summon the operating system's scanner on demand. What carries the claim is the recorded
+ * reading — 37 308 ms inside the case, 2/2 red at the default budget, 31.24/34.18/31.31 s in a
+ * standalone probe with the responsible process named — not a watched red.
+ */
+const STUB_EXEC_BUDGET_MS = 120_000
+
 describe('AUTH-01 — a deploy carries the enrolment vars or refuses', () => {
   it('reads a script big enough for the checks below to mean anything', () => {
     // The floor. Every case here is a text search, and a text search over an empty string passes.
@@ -121,7 +166,7 @@ describe('AUTH-01 — a deploy carries the enrolment vars or refuses', () => {
     } finally {
       rmSync(bin, { recursive: true, force: true })
     }
-  })
+  }, STUB_EXEC_BUDGET_MS)
 
   it('says so plainly when enrolment is not configured at all, rather than passing silently', () => {
     expect(SCRIPT).toContain('this node issues no certificates')
