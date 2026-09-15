@@ -116,10 +116,19 @@ The application was created (**`round-band-959b`**) and both halves are banked i
 and in the login keychain. The engineering behind the seam is written and measured, so what is
 left of this row is three acts, in order:
 
-1. **Rotate the API credential before anything else.** The value was pasted into a session
+1. ~~**Rotate the API credential before anything else.** The value was pasted into a session
    transcript, and a transcript is storage. Delete the application in the dashboard, create a
    fresh one, and write the new value straight into `.secrets/O2_TURN_API_SECRET` — not through
-   a chat window. The key id is not a secret and does not need this treatment.
+   a chat window. The key id is not a secret and does not need this treatment.~~
+   **OWNER RULING 2026-09-14 — not now, and the ordering word "first" is withdrawn with it.**
+   The transcript is local and the machine is a development machine, so the owner accepts the
+   exposure and will replace the key when there is a reason to. This is a decision taken with
+   the fact in front of him, not an oversight, and it is recorded here so it stops resurfacing
+   as an open item on every progress read. **What it changes about acts 2 and 3: nothing.** They
+   never depended on a fresh value — they set whatever `.secrets/` holds and read the verdict
+   back. The only thing lost is that the credential the deployed object will carry is one that
+   has been through a transcript; if that is ever to be undone, it is a dashboard delete plus a
+   re-run of act 2, which costs the same then as now.
 
 2. **Set both on the deployed object.** From `packages/cloudflare/`:
 
