@@ -80,6 +80,28 @@ deployment, or for any `--dry-run`.
 is what creates the object, fixes its placement forever, and starts the ≈$5/month meter. Reading
 this table does not create anything; running the command does.
 
+### The read to take first — `scripts/three-regions-readiness.sh`, added 2026-09-14
+
+    scripts/three-regions-readiness.sh              # local files only: no credential, no network
+    scripts/three-regions-readiness.sh --account    # also: has each configuration ever deployed?
+
+**It creates nothing and spends nothing.** One `wrangler deployments list` per region with
+`--account`, and that lists rather than deploys; without the flag it touches the network not at
+all. Guarded by `packages/node/src/three-regions-readiness.node.test.ts`, which also holds it to
+naming only configurations `deploy-hosted.sh` would accept — so a read cannot bless a placement
+the deploy would refuse.
+
+It prints the three configurations with **each one's placement mechanism beside it** (`eu` is a
+binding jurisdiction; `sam` is a hint and nothing more), the cost, that two regions also work,
+and that the first `get()` is final.
+
+**What it deliberately does NOT do is tell you the alert is configured.** Nothing in this
+repository reads alert policies from Cloudflare — `deploy-hosted.sh`'s `--alert-configured <n>`
+is *your declaration of what number means stop*, not a check against the account. The script
+says so in those words rather than printing a reassurance nothing measured. Confirming the
+alert in the dashboard is the one step here that is yours alone, and by `HOST-10`'s verdict it
+is the step that can only be taken once per object.
+
 **What to say back:** the budget is approved for N regions, and who runs the deploy.
 
 ---
