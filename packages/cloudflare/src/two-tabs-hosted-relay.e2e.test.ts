@@ -44,6 +44,23 @@
  * number a comparison rather than an absolute — but the *verdict* rests on the term that cannot
  * be produced by noise.
  *
+ * ## The busy relay figure is CONSTANT across runs, and that is the mechanism, not a frozen
+ * instrument
+ *
+ * Four runs printed `relay busy +2120 B` to the byte, while the idle window beside it varied
+ * (6 498 / 6 520 / 8 720 / 8 720) and the pair's own figure varied too. A constant sitting
+ * between two live neighbours is worth explaining rather than recording, and the explanation is
+ * in `relay-service-log.ts`: `observe()` returns immediately unless `roleOf(stream)` is a hop or
+ * stop role, so `relayService.bytes` accrues **only** on circuit-protocol streams and never on
+ * the WebSocket legs those streams ride. The busy window drives `computePeers()` rounds, which
+ * travel the WebRTC pair and open no new hop stream — so the relay's own protocol traffic across
+ * that window is the same fixed reservation upkeep every time. The idle window varies because it
+ * catches whatever keep-alive happened to fall inside it.
+ *
+ * **The instrument is demonstrably not frozen**: the same counter moves from cold to
+ * post-reservation within this very run, which positive control 2 asserts. A constant that a
+ * live control sits beside is a reading, not a stuck register.
+ *
  * ## Three positive controls, each closing a way this file could pass while blind
  *
  * A green built on a counter that never moved is the failure mode this arrangement is most
@@ -155,9 +172,12 @@ const RELAY_SHARE_CEILING = 0.5
  * `share` divides by this quantity, so it is the denominator's floor rather than a second
  * reading of the same property: a window that fitted too few rounds shrinks it while the relay's
  * keep-alive drip does not move, and the ratio then climbs for a reason that has nothing to do
- * with the data path. Three runs on an oversubscribed host each moved ~140 000 bytes across 38
- * rounds, so 10 000 is an order of magnitude below what a working window produces — it fails a
- * collapsed window, not a slow one.
+ * with the data path.
+ *
+ * Sited an order of magnitude below every reading taken while writing this file — 140 580,
+ * 140 306, 140 748 and 140 838 bytes, 38 rounds each, on hosts ranging from load/core 5.65 to a
+ * quiet 2.50 — so it fails a collapsed window and not a slow one. The relay side did not move
+ * across any of the four: 2 120 B every time.
  */
 const PAIR_BYTES_FLOOR = 10_000
 
@@ -493,9 +513,8 @@ describe('HOST-02 — two tabs meet through a hosted relay, which then leaves th
     // ratio climbs for a reason that is about the schedule, not about the data path. That
     // failure would read as *the relay is carrying a share of the data path*, which is the one
     // sentence this file must never say wrongly. So a run that did not move enough to divide by
-    // fails HERE, naming the rounds, rather than below naming the relay. Sited an order of
-    // magnitude under the three readings taken while writing this file — 140 580, 140 306 and
-    // 140 219 bytes across 38 rounds each — so it catches a collapsed window and not a slow one.
+    // fails HERE, naming the rounds, rather than below naming the relay. See
+    // {@link PAIR_BYTES_FLOOR} for the four readings it is sited against.
     expect(
       pairBusyDelta,
       `HOST-02: the pair moved ${String(pairBusyDelta)} bytes of its own across the busy window ` +
