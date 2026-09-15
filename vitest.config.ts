@@ -794,8 +794,15 @@ const NODE_MEASUREMENT = {
    * plan as the work it still awaits, which is how `AUTH-06` reported itself blocked for eight
    * days by a plan that had landed.
    */
+  /**
+   * **`tests` 3861 -> 3863 on 2026-09-15**, `files` unchanged at 268. Two cases added to the
+   * existing `packages/net/src/sovereign-execution.test.ts` — no new file — closing issue #15:
+   * a public exec over a CID the node holds in its durable sovereign set, and the paired
+   * positive that keeps the refusal from being satisfied by a node that refuses everything.
+   * Both were watched red under their own plants and restored `cmp`-clean.
+   */
   files: 268,
-  tests: 3861,
+  tests: 3863,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1191,8 +1198,14 @@ const NODE_MEASUREMENT = {
    * `Tests 3097 passed (3097)` on a quiet host (load/core 1.06 before, 2.87 after) — green
    * throughout, unlike the previous layer's run. `3097 - 3093 = 4` agrees with the four cases.
    */
+  /**
+   * **3097 -> 3099 on 2026-09-15**, `unitFiles` unchanged — the two new cases are in a file the
+   * unit set already ran. Measured rather than derived: `O2_UNIT_ONLY=1 npx vitest run --project
+   * node` collected `Tests 3099 passed (3099)`, green throughout, on a host its own banner called
+   * oversubscribed (load/core 3.17 before, 4.55 after), which does not affect a count.
+   */
   unitFiles: 185,
-  unitTests: 3097,
+  unitTests: 3099,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,

@@ -1484,12 +1484,54 @@ export function serveAgent(options: AgentOptions): void {
           return encodeResponse({ kind: 'error', reason: admission.reason })
         }
       }
+      const egress = options.egress
+
+      // **The node's own fact, consulted before anything else — issue #15.**
+      //
+      // Every other gate on this path branches on `task.label`, which the DISPATCHER chose:
+      // `authorizeCapability` returns before verifying a chain when the label is not
+      // `'sovereign'` (`capability-authorizer.ts:109`), `takeSovereignHold` registers no tap
+      // for the same reason, and `guardSovereignty` becomes a pass-through. So a frame saying
+      // `'public'` over somebody else's pinned bytes met no gate at all, and the executor read
+      // the CID unconditionally — the node refused to HAND OVER the block on the `block`
+      // branch and computed over it here instead, which is the same disclosure by a longer
+      // route, one steerable slice at a time through `partitionIndex`.
+      //
+      // **A label is a request; the durable set is a fact.** This is the same lookup the
+      // `block` branch makes, and that branch's own comment is the reasoning: *"sovereignty is
+      // a property of the bytes, not of whether a job happens to be running over them."* The
+      // conclusion was drawn there and not here.
+      //
+      // **Placed above `takeSovereignHold` and above the executor deliberately.** A refusal
+      // after execution would already have run the module against the owner's data — the same
+      // ordering argument the authorisation block below states for itself.
+      //
+      // **What this does NOT do.** It does not authorise a correctly-labelled sovereign
+      // dispatch; that is the chain's job, unchanged below. It refuses a dispatch whose label
+      // disagrees with what this node knows about the bytes, and it refuses **by name** rather
+      // than silently promoting the task to sovereign — a quiet promotion would hide from the
+      // sender that their label was wrong, and `egress refused: ` is already this tree's
+      // vocabulary for exactly this fact.
+      //
+      // A node that keeps no durable set (`'forgets-sovereignty-between-jobs'`, or no egress
+      // registry at all) cannot know, and is left exactly as it was: this gate can only refuse
+      // on a positive reading. Closing that arm is a separate decision about what the fabric
+      // does under partial knowledge, and it is not made here.
+      if (egress !== 'holds-no-registrations' && egress.sovereignCids !== 'forgets-sovereignty-between-jobs') {
+        const inputCid = request.task.inputCid.toString()
+        if (request.task.label !== 'sovereign' && egress.sovereignCids.has(inputCid)) {
+          return encodeResponse({
+            kind: 'error',
+            reason: `egress refused: ${inputCid} on ${executor.nodeId} is sovereign, and this dispatch is labelled ${request.task.label}`,
+          })
+        }
+      }
+
       // Taken before the executor runs, because `RpcBlockSource` may send frames over
       // this same guarded transport while it runs, and given back only by the value
       // returned here. A dispatch that declares nothing gets `null` and has nothing
       // to give back — which is the state that used to be unrepresentable, and the
       // reason one public exec could strip a sovereign payload's guard.
-      const egress = options.egress
       const hold =
         egress === 'holds-no-registrations'
           ? null

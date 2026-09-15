@@ -33,6 +33,7 @@ import {
   rpcAdmission,
   serveAgent,
 } from './index.ts'
+import type { SovereignCids } from './index.ts'
 
 /**
  * Phase 6 criterion 6 — owner-domain execution, end to end, with the tap watching.
@@ -605,7 +606,31 @@ describe('a hold survives an exec that never took one', () => {
   const OWNER = 'alice-user-key'
 
   /** One serving node, plus a client endpoint pointed at it. */
-  async function servingNode(options: { readonly sovereignInputsHoldsIt: boolean }) {
+  /**
+   * An in-memory {@link SovereignCids}, which the fixture below can give a node so it is one
+   * that KEEPS the durable set rather than one that forgets between jobs.
+   *
+   * `has` is synchronous by the interface's own requirement — it sits on the `block` branch's
+   * hot path, and both shipped adapters load the set at open and keep it in memory.
+   */
+  function memorySovereignCids(): SovereignCids {
+    const held = new Set<string>()
+    return {
+      add: async (cid: string): Promise<void> => {
+        held.add(cid)
+      },
+      has: (cid: string): boolean => held.has(cid),
+    }
+  }
+
+  async function servingNode(options: {
+    readonly sovereignInputsHoldsIt: boolean
+    /**
+     * Whether this node keeps the durable sovereign set. Default `false` keeps every case
+     * written before 2026-09-15 on exactly the arrangement it was written against.
+     */
+    readonly keepsSovereignCids?: boolean
+  }) {
     const network = new MemoryNetwork()
     const nodeId = 'server'
 
@@ -614,10 +639,20 @@ describe('a hold survives an exec that never took one', () => {
     const served = new MemoryBlockstore()
     const moduleCid = await served.put(MODULE_ECHOES_INPUT)
     const inputCid = await served.put(await sovereignBytes())
+    // A second input the node holds and has NOT recorded as sovereign — the arm that keeps the
+    // refusal above from being satisfied by a node that refuses everything.
+    const publicInputCid = await served.put(new Uint8Array([7, 7, 7, 7]))
 
     // The node's LOCAL-ONLY tier, which is what declares a payload sovereign.
     const sovereignInputs = new MemoryBlockstore()
     if (options.sovereignInputsHoldsIt) await sovereignInputs.put(await sovereignBytes())
+
+    // The durable set — the node's own record of which bytes are sovereign, independent of
+    // whether a job is running. `'forgets-sovereignty-between-jobs'` stays the default so the
+    // cases written before this one are unchanged.
+    const durableCids: SovereignCids | 'forgets-sovereignty-between-jobs' =
+      options.keepsSovereignCids === true ? memorySovereignCids() : 'forgets-sovereignty-between-jobs'
+    if (durableCids !== 'forgets-sovereignty-between-jobs') await durableCids.add(inputCid.toString())
 
     const guard = new EgressGuard(network.connect(nodeId), OWNER)
     const rpc = new RpcEndpoint(guard, { timeoutMs: 5_000 })
@@ -629,7 +664,7 @@ describe('a hold survives an exec that never took one', () => {
         canExecuteSovereign: true,
       }),
       blockstore: served,
-      egress: { guard, sovereignInputs, sovereignCids: 'forgets-sovereignty-between-jobs' },
+      egress: { guard, sovereignInputs, sovereignCids: durableCids },
 
       authorize: 'serves-unauthenticated',
       index: 'serves-no-records',
@@ -661,6 +696,7 @@ describe('a hold survives an exec that never took one', () => {
       guard,
       moduleCid,
       inputCid,
+      publicInputCid,
       exec,
       close: () => {
         rpc.close()
@@ -668,6 +704,95 @@ describe('a hold survives an exec that never took one', () => {
       },
     }
   }
+
+  /**
+   * The gate the `block` branch has and the `exec` branch did not — issue #15.
+   *
+   * ## What was wrong
+   *
+   * A node refused to **hand over** a sovereign block and would **compute over it and return
+   * the answer** to anyone who asked. `sovereignCids` was consulted in exactly one place, the
+   * `block` branch, and every gate on the `exec` path branched on `task.label` — a value the
+   * DISPATCHER chooses. `label: 'public'` therefore switched off the capability chain
+   * (`capability-authorizer.ts:109` returns before verifying), registered no egress tap, and
+   * made `guardSovereignty` a pass-through. The executor then read the CID unconditionally.
+   *
+   * The attacker also chooses `partitionIndex` / `partitionCount`, so the output can be steered
+   * to reveal the input a slice at a time.
+   *
+   * ## What this case asserts, and why it is aimed HERE
+   *
+   * At the **refusal**, not at a hold beside it. That distinction is the reason the defect
+   * survived: the case below this one performs the same dispatch and asserts
+   * `expect(publicReply?.kind).toBe('exec')` — that it goes through — because it is about hold
+   * bookkeeping. Read quickly it looks like coverage of this surface; it is a committed
+   * demonstration of the opposite. An instrument one degree off the property is how a gap
+   * outlives the tree's habit of naming its own gaps.
+   *
+   * ## The principle
+   *
+   * The node decides on **a fact it holds** — is this CID in the durable sovereign set — and
+   * never on a claim attached to the frame. `agent.ts`'s `block` branch already wrote the
+   * reasoning down: *"sovereignty is a property of the bytes, not of whether a job happens to
+   * be running over them."* That conclusion was drawn there and not here.
+   */
+  it('refuses a public exec over a CID the node knows is sovereign', async () => {
+    const node = await servingNode({ sovereignInputsHoldsIt: true, keepsSovereignCids: true })
+    try {
+      const reply = await node.exec({
+        moduleCid: node.moduleCid,
+        inputCid: node.inputCid,
+        partitionIndex: 0,
+        partitionCount: 1,
+        // The whole attack: a label the sender chose, over bytes the node knows are not theirs.
+        label: 'public',
+      })
+
+      // An `error` response, not an `exec` outcome. A refusal that arrived as a failed
+      // execution would be indistinguishable from a module that happened not to run.
+      expect(
+        reply?.kind,
+        'a public exec naming a CID this node holds in its sovereign set was ADMITTED — the ' +
+          'node refuses to hand these bytes over and computed over them instead, which is the ' +
+          'same disclosure by a longer route',
+      ).toBe('error')
+      if (reply?.kind !== 'error') return
+
+      // By name, in the vocabulary the `block` branch already uses for this exact fact, so an
+      // operator greps once and finds both.
+      expect(reply.reason).toContain('egress refused')
+      expect(reply.reason).toContain(node.inputCid.toString())
+    } finally {
+      node.close()
+    }
+  })
+
+  /**
+   * The paired positive, and it is what stops the case above from passing for the wrong reason.
+   *
+   * A node that refused every exec would satisfy the refusal perfectly. This one is the same
+   * arrangement with one thing changed — a CID the node has NOT recorded as sovereign — and it
+   * must still run. Without it the gate could be a blanket refusal and both cases would be green.
+   */
+  it('still runs a public exec over a CID it has not recorded as sovereign', async () => {
+    const node = await servingNode({ sovereignInputsHoldsIt: false, keepsSovereignCids: true })
+    try {
+      const reply = await node.exec({
+        moduleCid: node.moduleCid,
+        inputCid: node.publicInputCid,
+        partitionIndex: 0,
+        partitionCount: 1,
+        label: 'public',
+      })
+      expect(
+        reply?.kind,
+        'a public exec over an unregistered CID was refused, so the gate above is a blanket ' +
+          'refusal rather than a reading of the sovereign set',
+      ).toBe('exec')
+    } finally {
+      node.close()
+    }
+  })
 
   it('is not released by an unrelated public exec naming the same input', async () => {
     const node = await servingNode({ sovereignInputsHoldsIt: true })
