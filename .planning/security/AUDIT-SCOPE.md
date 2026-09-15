@@ -269,3 +269,47 @@ Every issue was re-verified against the code by the orchestrator before filing; 
 was a hypothesis until it carried its own `file:line`. Where the re-check changed an agent's
 reading, the issue says so — #24 carries a correction to this repository's own `CLAUDE.md` claim
 about provider-record expiry, which was checked and found no longer true of this tree.
+
+---
+
+# The design decisions that followed the audit — 2026-09-15
+
+The audit produced defects. The discussion after it produced two decisions, filed as #30 and #31.
+Both came from the owner, and **two of my own readings were wrong on the way there** — recorded,
+because the corrections are the useful part.
+
+## What I got wrong, twice
+
+**First:** I read "sign the requests" as *the executing node signs the frame*, and argued a signature
+only says who is asking. The owner meant something else and stronger: **a request signed under the
+data owner's or the application's certificate IS the grant**. It does not need checking against an
+external list, because the scope is inside the signature and cannot be forged. My objection —
+"an attacker signs with their own key" — does not touch it: their key is not the owner's, so the
+chain does not root.
+
+**Second:** I treated the authority model as something to be built. It is already built.
+`verifyChain` roots at the owner's key, checks the requested ability **at every link**, and permits
+re-delegation only where the previous link granted `delegate`. The owner's "child scope with
+different rights" is literally a second link with fewer abilities.
+
+So #15's real shape is narrower and worse than "a missing check": **the mechanism is correct and
+the path does not enter it.** `capability-authorizer.ts:109` returns before asking.
+
+## What is genuinely absent
+
+`signer` of a module's `NameRecord` and `ownerId` of the data are **never compared anywhere** —
+measured, no hits in production source. Authorization asks *may this node execute*, never *may
+this code touch it*. That is #31, and it is the owner's security-circle idea with no counterpart
+in the tree.
+
+## Two locks, and the reason the second one is even possible
+
+| lock | question | issue |
+|---|---|---|
+| input | may this code, asked for by this party, touch this data | #31 + #30 |
+| output | what may it emit once admitted | #20 |
+
+The output lock is enforceable rather than heuristic **because the guest's import surface is
+narrow**: the only channel out is `output_write`, and it passes through the host, which sees every
+byte. That is also why a declared-permissions model works better as *what will be emitted* than as
+*what will be called* — the second is already minimal and has nothing left to remove.
