@@ -794,8 +794,55 @@ const NODE_MEASUREMENT = {
    * plan as the work it still awaits, which is how `AUTH-06` reported itself blocked for eight
    * days by a plan that had landed.
    */
-  files: 268,
-  tests: 3861,
+  /**
+   * **`tests` 3861 -> 3863 on 2026-09-15**, `files` unchanged at 268. Two cases added to the
+   * existing `packages/net/src/sovereign-execution.test.ts` — no new file — closing issue #15:
+   * a public exec over a CID the node holds in its durable sovereign set, and the paired
+   * positive that keeps the refusal from being satisfied by a node that refuses everything.
+   * Both were watched red under their own plants and restored `cmp`-clean.
+   */
+  /**
+   * **`tests` 3863 -> 3865 on 2026-09-15**, `files` still 268. Two more cases in the same
+   * `packages/net/src/sovereign-execution.test.ts`, arriving with the second half of #15: the
+   * gate written earlier that day was sited BETWEEN the admission offer and the `finally` that
+   * releases it, so every refusal consumed a slot and never gave it back — a denial of service
+   * introduced by the fix for a disclosure. One case reads the slot table across a refusal and
+   * the dispatch after it; the other sends the same attack on a `commit` frame, which shares
+   * the branch, so it goes red if anyone ever splits the two. Each has its own watched-red
+   * plant; the slot case has two, because its two assertions answer to different faults.
+   */
+  /**
+   * **`files` 268 -> 269 on 2026-09-15, `tests` unchanged at 3865.** One new node-lane file,
+   * `until-helper-drift.node.test.ts`, and it carries **no new case**: the `until`-copies
+   * structural guard MOVED out of `closed-fabric-agents.node.test.ts`, so the total is the
+   * same test in a different file. A `+1` on `files` with `tests` flat is the signature of a
+   * move and is the reading to expect here.
+   *
+   * **Why it moved, since a count note is where the next reader looks.** That file's
+   * `beforeAll` is file-level and stands the whole fabric up — every agent and seed as real
+   * processes — before any test in it runs, including four that need none of it. The guard is
+   * pure filesystem: 178 sibling reads, **0.10-0.14 s** standing alone, and over the 5 000 ms
+   * budget inside that file because each of its 178 sequential `await`s yielded into an event
+   * loop saturated by the children's output. Its siblings in the same describe stayed green —
+   * they touch no I/O, which is the discriminator.
+   *
+   * **This retires an attribution made twice in the notes above.** `files 265 -> 266` and
+   * `files 263 -> 264` both recorded this same failure and both attributed it to an
+   * oversubscribed host on the strength of an isolated re-run reading 7/7. On 2026-09-15 it
+   * failed ALONE on a host its own banner called quiet (load/core 2.36 before, 3.62 after),
+   * reproducibly, and still failed with every sibling skipped by `-t`. Whether the margin
+   * eroded or those isolated re-runs were lucky is **not established** and is not guessed at
+   * here. The earlier readings are left standing as what was seen at the time.
+   *
+   * Counted, not derived: `npx vitest run --project node` collected `Test Files 4 failed |
+   * 265 passed (269)` and `Tests 4 failed | 3857 passed | 4 skipped (3865)`. **The four
+   * failures are pre-existing and none names anything this commit touches** —
+   * `deploy-preserves-enrolment`, `fs-blockstore`, `issuance-rate` and `result-signature`;
+   * the first two were re-run alone on a quiet host and still fail, and are being carried
+   * separately rather than folded in here.
+   */
+  files: 269,
+  tests: 3865,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1191,8 +1238,33 @@ const NODE_MEASUREMENT = {
    * `Tests 3097 passed (3097)` on a quiet host (load/core 1.06 before, 2.87 after) — green
    * throughout, unlike the previous layer's run. `3097 - 3093 = 4` agrees with the four cases.
    */
-  unitFiles: 185,
-  unitTests: 3097,
+  /**
+   * **3097 -> 3099 on 2026-09-15**, `unitFiles` unchanged — the two new cases are in a file the
+   * unit set already ran. Measured rather than derived: `O2_UNIT_ONLY=1 npx vitest run --project
+   * node` collected `Tests 3099 passed (3099)`, green throughout, on a host its own banner called
+   * oversubscribed (load/core 3.17 before, 4.55 after), which does not affect a count.
+   */
+  /**
+   * **3099 -> 3101 on 2026-09-15**, `unitFiles` unchanged for the same reason as the layer
+   * above: the two new cases live in a file the unit set already ran. Measured, not derived
+   * from the identity — `O2_UNIT_ONLY=1 npx vitest run --project node` collected `Test Files
+   * 185 passed (185)` and `Tests 3101 passed (3101)`, green throughout.
+   */
+  /**
+   * **186 / 3102 on 2026-09-15**, both `+1`, and the pair is the move's own signature. The
+   * guard left `closed-fabric-agents.node.test.ts`, which is ON the slow list and therefore
+   * OUTSIDE the unit set, and landed in `until-helper-drift.node.test.ts`, which is not — so
+   * a test that the unit lane never ran now runs in it. `files` moved by one for the new file
+   * and `tests` did not move at all, which is why only the unit pair gains a case.
+   *
+   * Measured, not derived from `files - excludedInNode`: `O2_UNIT_ONLY=1 npx vitest run
+   * --project node` collected `Test Files 2 failed | 184 passed (186)` and `Tests 2 failed |
+   * 3100 passed (3102)` on a quiet host (load/core 1.85 before, 2.38 after). The two failures
+   * are `deploy-preserves-enrolment` and `fs-blockstore`, both pre-existing, both named in the
+   * `files` note above; a count is a count whether the run was green.
+   */
+  unitFiles: 186,
+  unitTests: 3102,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,
