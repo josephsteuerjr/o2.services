@@ -801,8 +801,18 @@ const NODE_MEASUREMENT = {
    * positive that keeps the refusal from being satisfied by a node that refuses everything.
    * Both were watched red under their own plants and restored `cmp`-clean.
    */
+  /**
+   * **`tests` 3863 -> 3865 on 2026-09-15**, `files` still 268. Two more cases in the same
+   * `packages/net/src/sovereign-execution.test.ts`, arriving with the second half of #15: the
+   * gate written earlier that day was sited BETWEEN the admission offer and the `finally` that
+   * releases it, so every refusal consumed a slot and never gave it back — a denial of service
+   * introduced by the fix for a disclosure. One case reads the slot table across a refusal and
+   * the dispatch after it; the other sends the same attack on a `commit` frame, which shares
+   * the branch, so it goes red if anyone ever splits the two. Each has its own watched-red
+   * plant; the slot case has two, because its two assertions answer to different faults.
+   */
   files: 268,
-  tests: 3863,
+  tests: 3865,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1204,8 +1214,14 @@ const NODE_MEASUREMENT = {
    * node` collected `Tests 3099 passed (3099)`, green throughout, on a host its own banner called
    * oversubscribed (load/core 3.17 before, 4.55 after), which does not affect a count.
    */
+  /**
+   * **3099 -> 3101 on 2026-09-15**, `unitFiles` unchanged for the same reason as the layer
+   * above: the two new cases live in a file the unit set already ran. Measured, not derived
+   * from the identity — `O2_UNIT_ONLY=1 npx vitest run --project node` collected `Test Files
+   * 185 passed (185)` and `Tests 3101 passed (3101)`, green throughout.
+   */
   unitFiles: 185,
-  unitTests: 3099,
+  unitTests: 3101,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,

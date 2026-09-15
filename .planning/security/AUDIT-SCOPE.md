@@ -313,3 +313,51 @@ The output lock is enforceable rather than heuristic **because the guest's impor
 narrow**: the only channel out is `output_write`, and it passes through the host, which sees every
 byte. That is also why a declared-permissions model works better as *what will be emitted* than as
 *what will be called* — the second is already minimal and has nothing left to remove.
+
+---
+
+## The fix for #15 carried a second defect, and it was mine
+
+Recorded here because the audit's own rule is that a proof which cannot fail is not a proof,
+and the same rule applies to a fix.
+
+The gate that closes #15 returns early. On that branch an early return is not free: the
+admission table is claimed **above** it (`capacity.offer`) and released in a `finally`
+**below** it, around the executor. Sited between the two — which is where it was first
+written, and where it passed ten green cases — every refusal consumed a slot and never gave
+it back. `agent.ts` states the consequence itself, on the very block that hands the slot out:
+a node *"indistinguishable from a working node for exactly `slots` tasks and then refuses
+everything forever"*.
+
+So the fix for a disclosure defect installed a denial-of-service one, reachable by the same
+stranger, with the same frame, needing nothing but the CID.
+
+**Why no existing case could see it.** Every case in `sovereign-execution.test.ts` served with
+`capacity: 'accepts-every-offer'` — a table that accepts everything has nothing to leak. The
+instrument was one argument away from the defect, which is the identical shape to how #15
+itself survived: `sovereign-execution.test.ts` performed the attacking dispatch and asserted
+it went through.
+
+**What found it.** Not a test — a review of the fix before it merged, asking where the early
+return sat relative to the resources the branch claims. The case that proves it was written
+afterwards and watched red (`expected 1 to be +0`).
+
+The gate now sits above admission and above `pending.reserve`, so it claims nothing and can
+leak nothing.
+
+## Two remainders, filed rather than folded in
+
+- **#32 — the `combine` branch reads any CID the sender names.** Same class, one door along.
+  `combineAdmitted` does `options.blockstore.get(cid)` for every CID on the frame and never
+  consults `sovereignCids`, and that blockstore IS the sovereign tier (`fabric-node.ts:2691`
+  passes `store` as `sovereignInputs`, `:2756` wraps the same `store` as the agent's
+  blockstore). Weaker than #15 — the bytes do not come back, only the reduced value, and
+  `MAX_PARTIAL_BYTES` / `decodeCanonical` / `asFabricPartial` all stand in the way. How much
+  survives the reduction is **not measured**, and nobody should close it on the reduction
+  until it is.
+- **#33 — a node with no durable sovereign set is still exposed.** The gate can only refuse on
+  a positive reading. `fabric-node.ts:2687-2690` leaves `sovereignCids` at
+  `'forgets-sovereignty-between-jobs'` whenever no blockstore directory was given, so an
+  in-memory Node tier answers exactly as it did before. The browser tier always opens
+  `IdbSovereignCids`, so it is not affected. Closing this means ruling on what the fabric does
+  under partial knowledge, which belongs beside #30/#31.

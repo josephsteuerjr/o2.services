@@ -1,6 +1,7 @@
 import { ed25519 } from '@noble/curves/ed25519.js'
 import {
   EnrollmentAuthority,
+  LocalCapacity,
   MemoryBlockstore,
   MemoryNetwork,
   MemoryRecordIndex,
@@ -630,6 +631,13 @@ describe('a hold survives an exec that never took one', () => {
      * written before 2026-09-15 on exactly the arrangement it was written against.
      */
     readonly keepsSovereignCids?: boolean
+    /**
+     * The admission table to serve with. Default `'accepts-every-offer'` keeps every case
+     * written before 2026-09-15 on exactly the arrangement it was written against — and it is
+     * also why no case before that one could see a leaked slot: a table that accepts
+     * everything has nothing to leak.
+     */
+    readonly capacity?: LocalCapacity
   }) {
     const network = new MemoryNetwork()
     const nodeId = 'server'
@@ -669,7 +677,7 @@ describe('a hold survives an exec that never took one', () => {
       authorize: 'serves-unauthenticated',
       index: 'serves-no-records',
       enroll: 'issues-no-certificates',
-      capacity: 'accepts-every-offer',
+      capacity: options.capacity ?? 'accepts-every-offer',
       ledger: 'keeps-no-ledger',
       reservations: 'relays-for-nobody',
       onDispatch: 'reports-no-dispatch',
@@ -691,6 +699,21 @@ describe('a hold survives an exec that never took one', () => {
       return reply
     }
 
+    /**
+     * The same dispatch as `exec`, on the frame that withholds its answer.
+     *
+     * `serveAgent` serves both from ONE branch — its own comment says "`exec` and `commit`
+     * share this branch, because a commit **is** an exec whose answer is withheld" — so this
+     * exists to hold that sharing in place rather than to exercise a second code path. If the
+     * branch is ever split, the case using this goes red, which is the only warning a reader
+     * would get that a gate written once now needs writing twice.
+     */
+    const commit = async (task: Task) => {
+      const reply = parseResponse(await clientRpc.request(nodeId, encodeRequest({ kind: 'commit', task })))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      return reply
+    }
+
     return {
       nodeId,
       guard,
@@ -698,6 +721,7 @@ describe('a hold survives an exec that never took one', () => {
       inputCid,
       publicInputCid,
       exec,
+      commit,
       close: () => {
         rpc.close()
         clientRpc.close()
@@ -774,6 +798,99 @@ describe('a hold survives an exec that never took one', () => {
    * arrangement with one thing changed — a CID the node has NOT recorded as sovereign — and it
    * must still run. Without it the gate could be a blanket refusal and both cases would be green.
    */
+  /**
+   * The refusal must not cost the node a slot it never gives back.
+   *
+   * The gate added for #15 returns early, and on this path an early return is not free: the
+   * admission table is claimed *above* it and released in a `finally` *below* it, around the
+   * executor. A refusal that returns in between is admitted-and-never-released — and
+   * `agent.ts` already says in words what that produces, on the very block that hands the slot
+   * out: a node "indistinguishable from a working node for exactly `slots` tasks and then
+   * refuses everything forever".
+   *
+   * So the fix for a disclosure defect would have installed a denial-of-service one, reachable
+   * by the same stranger, needing nothing but the CID. `maxConcurrent: 1` makes one refused
+   * frame enough to prove it.
+   *
+   * Two readings, because either alone is weak. `inFlight` is the direct one and says the slot
+   * is gone the moment the refusal returns. The second dispatch is the consequence, and it is
+   * what a node operator would actually see.
+   */
+  it('gives the admission slot back when it refuses a public exec over sovereign bytes', async () => {
+    const capacity = new LocalCapacity({ nodeId: 'server', maxConcurrent: 1 })
+    const node = await servingNode({ sovereignInputsHoldsIt: true, keepsSovereignCids: true, capacity })
+    try {
+      const refused = await node.exec({
+        moduleCid: node.moduleCid,
+        inputCid: node.inputCid,
+        partitionIndex: 0,
+        partitionCount: 1,
+        label: 'public',
+      })
+      expect(refused?.kind, 'the refusal under test did not happen, so nothing here is about slots').toBe('error')
+
+      // The consequence first, because it is the reading an operator would actually get, and
+      // because a mutant has to be able to reach it: asserted after the slot count, it would
+      // never run on any tree where the slot count is already wrong.
+      const admitted = await node.exec({
+        moduleCid: node.moduleCid,
+        inputCid: node.publicInputCid,
+        partitionIndex: 0,
+        partitionCount: 1,
+        label: 'public',
+      })
+      expect(
+        admitted?.kind,
+        'a legitimate exec arriving after a refused one was turned away — the node has been ' +
+          'shut by its own gate, which is a denial of service a stranger reaches with one frame',
+      ).toBe('exec')
+
+      // The direct reading of the same fact, from inside the table.
+      expect(
+        capacity.inFlight,
+        'a slot is still held after this node finished with both frames. Two separate faults ' +
+          'reach this line and it was watched failing on each: a gate sited between the offer ' +
+          'and the release, and a release removed from the `finally` altogether',
+      ).toBe(0)
+    } finally {
+      node.close()
+    }
+  })
+
+  /**
+   * The same refusal on the frame that withholds its answer.
+   *
+   * `exec` and `commit` are served from one branch today, so this is green the moment the gate
+   * exists — and that is the point of writing it rather than a reason not to. A commit that
+   * slipped past the gate would run the module over the owner's bytes and file the answer
+   * locally; the requestor then collects it in round two, where `reveal` binds the handle to
+   * the peer that committed — which is the attacker. Disclosure in full, one round later.
+   *
+   * It therefore fails if anyone ever splits the branch and carries only `exec`'s gate across.
+   */
+  it('refuses a public commit over a CID the node knows is sovereign', async () => {
+    const node = await servingNode({ sovereignInputsHoldsIt: true, keepsSovereignCids: true })
+    try {
+      const reply = await node.commit({
+        moduleCid: node.moduleCid,
+        inputCid: node.inputCid,
+        partitionIndex: 0,
+        partitionCount: 1,
+        label: 'public',
+      })
+
+      expect(
+        reply?.kind,
+        'a public COMMIT over sovereign bytes was admitted — the module ran over the owner\'s ' +
+          'data and the answer is now filed on this node, collectable by the sender in round two',
+      ).toBe('error')
+      if (reply?.kind !== 'error') return
+      expect(reply.reason).toContain('egress refused')
+    } finally {
+      node.close()
+    }
+  })
+
   it('still runs a public exec over a CID it has not recorded as sovereign', async () => {
     const node = await servingNode({ sovereignInputsHoldsIt: false, keepsSovereignCids: true })
     try {
@@ -811,6 +928,13 @@ describe('a hold survives an exec that never took one', () => {
         partitionCount: 2,
         label: 'public',
       })
+      // **Still `'exec'`, and beside the #15 refusal above that is worth one sentence.**
+      // This node is built with `keepsSovereignCids` at its default — it keeps no durable
+      // sovereign set — so the gate added for #15 has no fact to read and cannot fire here by
+      // construction. It was verified by reading this fixture call, not inferred from the
+      // green. A reader who meets the two cases in file order and wonders why one dispatch is
+      // refused and the next admitted has the answer in the argument, not in the gate. That
+      // arm is tracked as its own open question.
       expect(publicReply?.kind).toBe('exec')
 
       // The hold the public exec never took is still held.
