@@ -1516,7 +1516,18 @@ const REREAD_REGISTER: readonly UnreadRow[] = [
   {
     id: 'NET-03',
     because: 'tier-or-configuration',
-    reread: '2026-08-31',
+    // **RE-READ 2026-09-14 at 15 days outstanding — the verdict is unmoved, and nothing about
+    // the row moved either.** All three witnesses were RUN rather than read: `auto-tls` and
+    // `relaying` 22 of 22, `seed-binary-join` 2 of 2. Both gates stand exactly as the row
+    // states them. The AutoTLS route still wants a public certificate authority and a publicly
+    // reachable interface, and this host still has no interface that is not RFC 1918 or a ULA.
+    // On the Cloudflare route the certificate requirement **does not arise** — TLS is a
+    // commercial certificate terminated at the edge with nobody managing one — and a
+    // requirement that does not arise has not been met. What moved in the fortnight since the
+    // last re-read is elsewhere: the hosted tier gained three placement configurations and a
+    // browser pair now upgrades away from it under a committed spec (`HOST-02`). Neither
+    // touches a certificate, which is why the date moves and the verdict does not.
+    reread: '2026-09-14',
     witnesses: [
       'packages/node/src/auto-tls.node.test.ts',
       'packages/node/src/relaying.node.test.ts',
