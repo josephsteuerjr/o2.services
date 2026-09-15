@@ -768,8 +768,27 @@ const NODE_MEASUREMENT = {
    * on the same still-oversubscribed host (load/core 21.61-24.53): 7/7 passed. Attributed by
    * isolated re-run, not by plausibility, per `CLAUDE.md` § Measurement.
    */
-  files: 266,
-  tests: 3850,
+  /**
+   * **`files` 266 -> 267, `tests` 3850 -> 3857 on 2026-09-14.** One new node-lane file,
+   * `three-regions-readiness.node.test.ts`, carrying 7 cases — `3857 - 3850 = 7` agrees with
+   * the count and is not a substitute for it. It guards `scripts/three-regions-readiness.sh`,
+   * the pre-deploy read for `HOST-06`'s three placements.
+   *
+   * **One of its own cases was watched red before it was right, and the red is worth the
+   * line.** The case asserting the script cannot create anything first scanned the whole file
+   * and failed on the script's own header, which says in prose that `wrangler deploy` and
+   * `wrangler dev` appear nowhere in it. `wrangler.jsonc`'s header records the identical
+   * collision twice before — a guard that cannot tell a claim from a call. The scan now covers
+   * executable lines only, and a real creating call planted on one was watched red naming the
+   * line, then restored `cmp`-clean.
+   *
+   * The `e2e`-lane file added the same day (`two-tabs-hosted-relay.e2e.test.ts`) is NOT in
+   * these counts and must not be added to them: `slow-specs.node.test.ts` derives them from a
+   * `--project node` run, measured rather than assumed — it stayed green across that file's
+   * arrival.
+   */
+  files: 267,
+  tests: 3857,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1145,8 +1164,20 @@ const NODE_MEASUREMENT = {
    * both files clean on a host its own banner still called oversubscribed (load/core
    * 20.98-22.48), which does not affect a count.
    */
-  unitFiles: 183,
-  unitTests: 3086,
+  /**
+   * **183 -> 184, 3086 -> 3093 on 2026-09-14**, with `three-regions-readiness.node.test.ts`.
+   * `excludedInNode` is unchanged, so the identity `unitFiles === files - excludedInNode`
+   * gives `267 - 83 = 184`. **Measured rather than derived from that identity**, because the
+   * identity is what the guard checks and a number that satisfies its own check is not a
+   * reading: `O2_UNIT_ONLY=1 npx vitest run --project node` collected `Test Files 1 failed |
+   * 183 passed (184)` and `Tests 1 failed | 3092 passed (3093)` on a quiet host (load/core
+   * 0.76 before, 1.83 after). The one failure was `slow-specs.node.test.ts` itself, reading
+   * the not-yet-updated figure it is now being given — the guard doing its job, not a defect.
+   *
+   * `3093 - 3086 = 7` agrees with the seven cases the new file carries.
+   */
+  unitFiles: 184,
+  unitTests: 3093,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,
