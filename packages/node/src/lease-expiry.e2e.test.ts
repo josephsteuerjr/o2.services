@@ -214,7 +214,24 @@ const SHORT_LEASE_MS = 2_000
  */
 const LONG_LEASE_MS = 6_000
 
-/** Attempts allowed to land a signal inside the job. See {@link armWithLoss}. */
+/**
+ * Attempts allowed to land a signal inside the job. See {@link armWithLoss}.
+ *
+ * **APPLIED TO ALL FOUR ARMS ON 2026-09-15, having been applied to one.** `armWithLoss` was
+ * written for the `killed` arm and the other three kept calling {@link runArm} bare, though
+ * every one of them depends on the same thing happening: a signal landing while the holder
+ * still holds shards. On 2026-09-15 a full `e2e` lane on a quiet host failed `short` and
+ * `stopped` on exactly that, one after the other -- `{granted 12, renewed 11, completed 12}`
+ * with 130 ms of CPU burned, and `{granted 12, completed 12, renewed 4}` with 3 350 ms.
+ * Twelve granted, twelve completed, no loss of either kind: the job was over before the
+ * signal arrived.
+ *
+ * The window this has to hit is small and getting smaller -- a shard here is a few tens of
+ * milliseconds of work, and anything that makes execution faster narrows it again. That is
+ * why the remedy is a retry rather than a wider margin: `armWithLoss` throws with every
+ * attempt's tally when it cannot arrange the experiment, so a fixture that has genuinely
+ * run out of window says so in those words instead of presenting as a fabric defect.
+ */
 const ARM_ATTEMPTS = 3
 
 /**
@@ -726,9 +743,9 @@ afterEach(async () => {
 
 describe('CHURN-04 — a lease expires across real OS processes and the shard is re-dispatched', () => {
   it('re-dispatches a silenced holder\'s shards after the lease the operator asked for, and waits longer when that lease is longer', async () => {
-    const short = await runArm('short', SHORT_LEASE_MS, 'SIGSTOP')
+    const short = await armWithLoss('short', SHORT_LEASE_MS, 'SIGSTOP')
     readArm(short, SHORT_LEASE_MS)
-    const long = await runArm('long', LONG_LEASE_MS, 'SIGSTOP')
+    const long = await armWithLoss('long', LONG_LEASE_MS, 'SIGSTOP')
     readArm(long, LONG_LEASE_MS)
 
     /**
@@ -791,7 +808,7 @@ describe('CHURN-04 — a lease expires across real OS processes and the shard is
      * SIGSTOP is the honest instrument for *silence*, and why this file uses it everywhere
      * else.
      */
-    const stopped = await runArm('stopped', SHORT_LEASE_MS, 'SIGSTOP')
+    const stopped = await armWithLoss('stopped', SHORT_LEASE_MS, 'SIGSTOP')
     readArm(stopped, SHORT_LEASE_MS)
     const killed = await armWithLoss('killed', SHORT_LEASE_MS, 'SIGKILL')
     readArm(killed, SHORT_LEASE_MS)
