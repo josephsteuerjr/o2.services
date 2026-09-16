@@ -434,7 +434,7 @@ last_activity: >-
   owner's. RUN-06, RUN-01 and RUN-07 all moved to Partial. The urgent finding is not a criterion
   -- an object whose region is null refuses every halt, and the deployed one reported null.
 progress:
-  total_phases: 15
+  total_phases: 17
   completed_phases: 0
   total_plans: 1
   completed_plans: 1

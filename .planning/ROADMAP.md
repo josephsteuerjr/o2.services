@@ -2798,3 +2798,59 @@ rather than changed; reframing the model is an owner decision.
 **Plans**: none — **executed criterion by criterion rather than planned**, because the five criteria are five independent artefacts on four tiers with no shared design decision between them, and a planning pass would have produced five plans each restating one criterion. The record is per criterion instead: `43-VISITOR-KEY.md` (criteria 1 and 2), `43-KEYCHAIN.md` (3), `43-HOSTED.md` (4), `43-ALLOWLIST.md` (5).
 **Status 2026-09-06 — all five criteria met in code and measured; the BOX IS NOT TICKED and the reason is not a technicality.** The deployed Durable Object still holds its seed in the clear, and will until the owner sets the platform secret and deploys — `.planning/OWNER-ACTIONS.md` row 8. The rule says *no key written anywhere in the clear*, and there is one, in production, right now. Ticking `AUTH-07` while that is true would be closing a requirement on the code rather than on the fabric.
 **What each criterion cost, in one line each**: (1) the defect was found by reading and **reproduced on three engines before it was fixed** — `42-07` had left the enrolment control reachable to a visitor holding no passphrase, so a key could be minted where there was nothing to seal it with; (2) the visitor key is sealed, and a pre-`AUTH-07` record **cannot** be migrated — a non-extractable key has no bytes to give, so the API meant to protect it is what prevented protecting it; (3) both keychains derive a real DEK by domain-separated HKDF from the identity seed, **not** from the operator passphrase, because feeding that to PBKDF2-10k beside its own Argon2id envelope makes the cheap target an oracle for the expensive one; (4) the hosted seed is sealed under a platform secret, with the migration ordering copied from `identity-store.ts` — re-read and open **before** the plaintext is deleted — and a missing secret refuses by name rather than minting; (5) one guard walks 50 stores and 73 write sites against a register that must match in both directions, and it found a deliberate plaintext seed in a test fixture that needed a fourth classification to describe honestly.
+
+### Phase 44: The Unit of Diversity Stops Lying
+
+**Goal**: As the owner of a fabric about to be opened to strangers, I want the field that decides whether a result is called *independent* to be determined by the issuer rather than dictated by the applicant, and I want every claim in this tree about that field to say only what is true, so that nobody — reader, operator or auditor — concludes the fabric is protected against something it is not.
+**Depends on**: Phase 43. **And it must land BEFORE `.planning/OWNER-ACTIONS.md` row 3b**, which is the act that turns on public unauthenticated issuance in front of strangers and which must itself precede the release (row 11). This is HOST-07's argument, which this ROADMAP already accepts: *refuse the claim before there is an opportunity to make it, which is the only point at which refusing it is cheap.* After 3b the false sentence is load-bearing in front of a cohort.
+**Requirements**: VER-11 (new)
+**Design**: `docs/architecture/RFC-0003-RESPONSE-05-operator-identity-and-quorum-diversity.md` — §1, §2, §5, §7 and §9. Every file:line below is cited there and was measured 2026-09-15 against this tree.
+
+**The defect.** `NodeCertificate.operatorId` is what `enrollment.ts:216` calls *"Who runs the hardware. The unit of quorum diversity."* `composeQuorum` (`quorum.ts:214`) keeps one certificate per distinct `operatorId` (`:226-227`), and `classifyAttestation` (`:373-382`) returns `'independent'` the moment `operators.size >= 2`. It is reached on the live job path at `packages/core/src/job/submit.ts:2853-2859`. The provider **copies that field verbatim out of the applicant's request** — `enrollment.ts:1356` — never derives it, never checks it, and `AuthorityOptions` (`:1013-1053`) gives it nothing to check against. `nodeKey` and `userKey` each carry a proof; `operatorId` carries none.
+
+**What this phase does NOT buy, stated here because the design document had to be corrected on exactly this point.** Deriving the identity changes **nothing an attacker does**. Rotating user keys is free and this repository already measured it — `enrollment.ts:71`: *"a fresh user key is one `ed25519.keygen()`. Phase 17 measured that — twenty requests under twenty distinct user keys all succeeded, and deleting the per-user guard left the reading unchanged."* Phase 44 buys **truth-in-labelling**, and it removes a serving origin's ability to dictate a visitor's identity — the browser tier's own stated concern at `visitor-key.ts:298`. **The security weight is entirely in Phase 45.** A summary of this phase that calls it a Sybil fix is wrong.
+
+**What must NOT be "fixed" — it is already honest.** `enrollment.ts:110-117` already records that there is no proof-of-work at the enrolment frame, no authenticated enrolment and no per-peer quota, and that *"`serveAgent`'s `enrol` branch still takes no authorization step of any kind. The trade was a trade, and the next reader is owed that word rather than a claim of design."* That paragraph stays.
+
+**Success Criteria** (what must be TRUE):
+  1. An enrolment request whose `operatorId` does not derive from its `userKey` is **refused by name**, and the refusal carries both the supplied and the derived value. A new `CertificateRefusal` arm — refuse, never silently overwrite: a certificate says what the applicant asked for, or the applicant was told no
+  2. Two requests carrying the **same `userKey`** and **different** requested operator names yield certificates with the **same `operatorId`**. **No case in the tree asserts this today, and it is the case that would have caught the defect**
+  3. A real browser visitor enrolling through the shipped client path is **not** refused. `packages/browser/src/visitor-key.ts:298` already derives `visitor:${userKey.slice(0,16)}` and its docblock already carries this phase's whole argument — *"derivation makes that unrepresentable: there is no parameter"*. The provider's prefix is reconciled with the browser's **in the same change**, and the browser's spelling wins: it is deployed and its reasoning is recorded
+  4. `AttestationReceipt` (`quorum.ts:385-393`) names the issuers behind a quorum, built as `operators` is at `:402`. This is the unblocked half of the issuer work — it makes the dimension **visible** without imposing a refusal that Phase 45 cannot yet justify. `issuer` appears **zero** times in `quorum.ts` today, measured
+  5. **`enrollment.ts:122` no longer overstates.** It lists, among the reasons the attack radius is tolerable, *"`composeQuorum` enforces anti-affinity by `operatorId` so N sybils under one operator take exactly one quorum slot"* — true, and about a narrower attack than it reads: N identities under ONE name, not N identities under N names, which costs one extra string and is checked nowhere. **This is the item that ends a reader's search, and correcting it is the point of the phase, not its tidying.** `VER-04` keeps its tick — its literal text is satisfied — and gains a dated note pointing at VER-11
+  6. RFC-0003 gains the missing threat and the missing invariant. §14 lists twelve threats and bulk identity minting is not among them; §15 says nothing about two certificates naming different operators having reached different parties. `grep -niE "sybil|operator"` over the whole RFC returns **nothing** — the code inherited a diversity rule the RFC never stated a threat for
+  7. A mutation reverting `operatorId` to the request's value turns criterion 2 red. Watched failing, restored by the surgical inverse, `cmp` verified
+
+**Plans**: not yet planned.
+
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 44 to break down)
+
+### Phase 45: Independence Bounded by the Providers an Attacker Must Subvert
+
+**Goal**: As a requestor relying on N-version verification, I want `independent` to mean that more than one provider vouched for the members, so that an attacker who can reach a single provider cannot mint a whole quorum however many operator names they choose.
+**Depends on**: Phase 44 (the receipt already carries the issuers) **and on an owner decision that does not yet exist** — see the gate below. Listed now; **not to be planned in detail until that decision is made**.
+**Requirements**: VER-12 (new)
+**Design**: `docs/architecture/RFC-0003-RESPONSE-05-operator-identity-and-quorum-diversity.md` §6.
+
+**This is where the security weight of the whole design document sits.** Phase 44 makes the field honest; this phase is what an attacker actually runs into.
+
+**THE GATE, written here rather than discovered during execution.** With **one** provider running, requiring issuer diversity makes `'independent'` **unreachable**. The fabric would stop claiming an independence it cannot currently support — which is correct, and uncomfortable. The owner chooses: run a second provider, or accept a lower ceiling until one exists. Recorded as a row in `.planning/OWNER-ACTIONS.md`.
+
+**Design to plan against**: `QuorumRules.requireDistinctIssuers`, defaulting true; a new refusal `{ kind: 'single-issuer-quorum'; issuer }`; composition that groups by issuer and takes round-robin, so diversity is *"a property of the construction rather than a check bolted on after"* — `quorum.ts:226`'s own words about the operator rule. A **new** strength `'single-issuer'` is inserted between `owner-domain` and `independent`; collapsing a many-operator single-issuer quorum into `owner-domain` would be a lie in the other direction, because those nodes are not one owner's machines. `attestationRank` (`quorum.ts:124-135`) already documents *"callers compare by rank, not by string"*, which is what makes the insertion safe — and **every caller comparing by string literal must be found and fixed in the same change**; that sweep is work, not follow-up.
+
+**Success Criteria** (what must be TRUE):
+  1. `composeQuorum` over N candidates all carrying certificates from one issuer refuses with `single-issuer-quorum` under the default rule, and composes when the rule is explicitly waived
+  2. `classifyAttestation` returns `'single-issuer'` for many operators and one issuer, and `'independent'` only when **both** dimensions exceed one
+  3. Ordering by `attestationRank` holds across the insertion, and **no caller anywhere compares an attestation strength by string literal** — asserted by a guard over the source, not by inspection
+  4. A mutation dropping the issuer check turns criterion 1 red. Watched failing, restored by the surgical inverse, `cmp` verified
+  5. The surface that reports a result says **which** dimension it fell short on, so a reader who sees `single-issuer` is not left guessing whether it was the operators or the providers
+
+**What neither phase fixes — recorded so nobody reads the pair as a complete answer**: an attacker who reaches two providers; providers colluding, or one party running several, which makes **issuer diversity a PROXY for party diversity and it must be labelled a proxy**; the cost of an identity, which only proof-of-work or invitation touches and which the design document defers as option C; and `relayIds`, requester-chosen by the same sentence at `enrollment.ts:71` and read by the path-diversity rule — the same shape of defect, not examined. **Sovereign data is unaffected throughout**: an owner-pinned shard is `owner-attested` by construction and has no quorum to subvert.
+
+**Plans**: not yet planned.
+
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 45 to break down)
