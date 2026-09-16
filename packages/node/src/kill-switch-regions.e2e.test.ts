@@ -339,7 +339,29 @@ async function startTab(region: HostedObjectName): Promise<Page> {
     },
     [address, `o2-regions-${region}`, DUTY_CYCLE, POLL_MS] as [string, string, number, number],
   )
-  // Dispatched WITHOUT awaiting, so the tab is genuinely running while it is sampled.
+  return page
+}
+
+/**
+ * Start the colouring run on a tab that is already up.
+ *
+ * **Split out of `startTab` on 2026-09-15, and the split is the fix for two separate failures.**
+ * `startTab` used to dial the relay AND dispatch the run, and the three tabs are stood up in
+ * turn — so by the time the second and third tabs dialled, the earlier ones were already
+ * burning 128 cubes at `dutyCycle: 0.5` on the same machine. Both observed dial failures were
+ * on later tabs: `Could not connect to ws://127.0.0.1:8805` for the second and
+ * `/tcp/8806 … signal timed out` for the third, on hosts their own banners called quiet. The
+ * dial now happens while nothing is computing.
+ *
+ * The same split removes the reason the before-window floor had to be rewritten as an absolute:
+ * with all three runs beginning together, none of them can finish before the window opens. The
+ * floor stays the absolute anyway, because "has this tab done any work" is the question it
+ * always meant to ask and it does not become the wrong question just because the arrangement
+ * got kinder.
+ *
+ * Dispatched WITHOUT awaiting, so the tab is genuinely running while it is sampled.
+ */
+function dispatchRun(page: Page): void {
   const run = page.evaluate(
     async ([n, cubes]) =>
       window.o2.runColouring({ n: n as number, cubes: cubes as number, redundancy: 1, peerIds: [] }),
@@ -351,7 +373,6 @@ async function startTab(region: HostedObjectName): Promise<Page> {
     () => {},
     () => {},
   )
-  return page
 }
 
 /** Tasks this tab has started, or `null` once there is no node to ask. */
@@ -407,7 +428,11 @@ async function postAdmission(port: number, body: unknown): Promise<{ status: num
 describe('RUN-02 criterion 1 — one region’s tabs stop, the other two go on working', () => {
   it('halts the eu tab and leaves us and sam executing, measured as three within-run ratios', async () => {
     const tabs = new Map<HostedObjectName, Page>()
+    // Every tab dials first, and only then does any of them start computing — see
+    // `dispatchRun`. Standing one up while the others are already at full duty is what made
+    // the later dials fail.
     for (const region of HOSTED_OBJECT_NAMES) tabs.set(region, await startTab(region))
+    for (const region of HOSTED_OBJECT_NAMES) dispatchRun(tabs.get(region) as Page)
 
     // ---- Window 1: the moving floor, on all three. ----------------------------------
     const beforeStart = new Map<HostedObjectName, number>()

@@ -2104,15 +2104,37 @@ if (values.coordinate !== undefined) {
    * renewal probe spent going unanswered. So it is never *below* the lease, and a reading
    * below the lease would mean a shard was taken off a node that still held it.
    */
-  function expiries(
+  /**
+   * Losses of one kind, with the time the lease was actually held.
+   *
+   * **Parameterised by kind on 2026-09-15, and the reason is a measurement.** It filtered
+   * `expired` only, and `lease-expiry.e2e.test.ts` read the result as *the* record of what a
+   * silenced holder lost. A SIGKILLed holder's socket closes, so its outstanding dispatches
+   * can come back inside the lease and be given up as `surrendered` instead — measured across
+   * eleven runs at anywhere from none of twelve to **all** of them. An emission that carries
+   * one kind and not the other therefore reports a whole class of loss as no loss at all, and
+   * on the all-surrender run it left the consuming spec reading an empty array: `Math.max(...[])`
+   * is `-Infinity`, so an assertion about how long leases were held passed without looking at
+   * anything. The docblock above says this exists so an operator can see *"which shards lost a
+   * lease"* — a surrendered shard lost one.
+   */
+  function lossesOfKind(
     history: readonly LeaseEvent[],
+    kind: 'expired' | 'surrendered',
   ): readonly { taskId: string; nodeId: string; generation: number; heldMs: number | null }[] {
     const grantedAt = new Map<string, number>()
     for (const event of history) {
       if (event.kind === 'granted') grantedAt.set(`${event.taskId}#${String(event.generation)}`, event.at)
     }
     return history
-      .filter((event) => event.kind === 'expired')
+      .filter(
+        // A type predicate rather than a bare comparison: narrowing by a literal is something
+        // TypeScript does for free and narrowing by a VARIABLE is not, so without this the two
+        // shapes stay a union with `LeaseEvent`'s kinds that carry neither `nodeId` nor
+        // `generation`. Both kinds named here do carry them — see `lease.ts`.
+        (event): event is Extract<LeaseEvent, { readonly kind: 'expired' | 'surrendered' }> =>
+          event.kind === kind,
+      )
       .map((event) => {
         const at = grantedAt.get(`${event.taskId}#${String(event.generation)}`)
         return {
@@ -2211,7 +2233,8 @@ if (values.coordinate !== undefined) {
                 tally[event.kind] = (tally[event.kind] ?? 0) + 1
                 return tally
               }, {}),
-              expired: expiries(result.job.leaseHistory),
+              expired: lossesOfKind(result.job.leaseHistory, 'expired'),
+              surrendered: lossesOfKind(result.job.leaseHistory, 'surrendered'),
             },
             speculationMultiplier: result.job.speculationMultiplier,
             shards: result.job.shards.map((shard) => ({

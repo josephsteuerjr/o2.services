@@ -214,6 +214,9 @@ const SHORT_LEASE_MS = 2_000
  */
 const LONG_LEASE_MS = 6_000
 
+/** Attempts allowed to land a signal inside the job. See {@link armWithLoss}. */
+const ARM_ATTEMPTS = 3
+
 /**
  * CPU an executor must have spent **since the coordinator announced** before it is silenced.
  *
@@ -446,6 +449,12 @@ interface JobLine {
   readonly shards: readonly ShardRow[]
   readonly kinds: Readonly<Record<string, number>>
   readonly expired: readonly Expiry[]
+  /**
+   * Leases given back on an observed hard failure rather than run out. Same shape as
+   * {@link JobLine.expired} and, for this file's purposes, the same fact: a lease the silenced
+   * holder lost. Which of the two a loss becomes is a race — see the case docblock.
+   */
+  readonly surrendered: readonly Expiry[]
 }
 
 function jobOf(line: Line): JobLine {
@@ -458,6 +467,7 @@ function jobOf(line: Line): JobLine {
     shards: [...(job['shards'] as ShardRow[])].sort((a, b) => a.partitionIndex - b.partitionIndex),
     kinds: leases['kinds'] as Readonly<Record<string, number>>,
     expired: leases['expired'] as readonly Expiry[],
+    surrendered: leases['surrendered'] as readonly Expiry[],
   }
 }
 
@@ -545,13 +555,66 @@ async function runArm(
 }
 
 /** Every `heldMs` in an arm, with the nulls refused rather than filtered. */
+/**
+ * Every lease this arm's silenced holder lost, of either kind.
+ *
+ * **Both kinds, and reading only one is how an assertion went blind.** `heldOf` read
+ * `expired` alone. On a run where the killed holder's closed socket returned every
+ * outstanding dispatch inside the lease, `expired` was empty, so `heldOf` returned `[]`,
+ * `Math.max(...[])` is `-Infinity`, and the assertion that the killed arm is faster passed
+ * having looked at nothing. A surrender is a loss whose lease was held for a measurable time
+ * exactly as an expiry is, so it belongs in the same list.
+ */
+function lossesOf(arm: Arm): readonly Expiry[] {
+  return [...arm.job.expired, ...arm.job.surrendered]
+}
+
 function heldOf(arm: Arm): readonly number[] {
-  return arm.job.expired.map((expiry) => {
+  return lossesOf(arm).map((expiry) => {
     if (expiry.heldMs === null) {
-      throw new Error(`task ${expiry.taskId} expired with no matching grant in the history`)
+      throw new Error(`task ${expiry.taskId} lost a lease with no matching grant in the history`)
     }
     return expiry.heldMs
   })
+}
+
+/**
+ * An arm whose signal actually landed mid-job, retried a bounded number of times if it did not.
+ *
+ * **This re-arms a failed ARRANGEMENT, and it is not a way of retrying until green.** The case
+ * below is about a holder lost *while it was working*. A run where the signal arrives after the
+ * holder has already answered every shard produces `granted === completed` and no loss of any
+ * kind — it is not a counter-example to the claim, it is a run in which the claim was never put
+ * to the test. Measured once in ten runs of the killed arm: `{"granted":12,"completed":12}`, and
+ * the assertion message in `readArm` already names that outcome as the margin being spent.
+ *
+ * **What it cannot hide.** A real regression — a kill that stops costing leases at all — burns
+ * every attempt and fails by name, carrying each attempt's own tally. The loss-kind race is
+ * untouched: an arm that lost leases is returned on its first attempt whether they expired or
+ * were surrendered, so the distribution this case reports is the fabric's and not this
+ * helper's. And the grant-accounting identity is checked on whatever arm comes back, so a
+ * forgotten lease is still a red rather than a retry.
+ *
+ * A fresh tag per attempt because `runArm` derives its workdir, its job store and its agent
+ * names from it; reusing one would have the second attempt collide with the first's files.
+ */
+async function armWithLoss(
+  tag: string,
+  leaseMs: number,
+  signal: 'SIGSTOP' | 'SIGKILL',
+): Promise<Arm> {
+  const tallies: string[] = []
+  for (let attempt = 1; attempt <= ARM_ATTEMPTS; attempt += 1) {
+    const arm = await runArm(attempt === 1 ? tag : `${tag}-r${String(attempt)}`, leaseMs, signal)
+    if (lossesOf(arm).length > 0) return arm
+    tallies.push(JSON.stringify(arm.job.kinds))
+  }
+  throw new Error(
+    `could not arrange a mid-job ${signal} for '${tag}' in ${String(ARM_ATTEMPTS)} attempts — ` +
+      `every one of them finished the job before the signal landed. Tallies: ${tallies.join(', ')}. ` +
+      'This is the fixture failing to set the experiment up, not the fabric failing to lose a ' +
+      'lease; if it persists, the work each shard does is too small for the signal to land inside.',
+  )
 }
 
 /**
@@ -562,8 +625,8 @@ function readArm(arm: Arm, leaseMs: number): void {
   // **Stated first, so an arm whose signal landed too late fails by name** instead of making
   // every reading beneath it vacuously true.
   expect(
-    arm.job.expired.length,
-    `arm '${arm.name}' recorded no expiry at all. What the fabric DID record: `
+    lossesOf(arm).length,
+    `arm '${arm.name}' recorded no lease loss of EITHER kind. What the fabric DID record: `
       + `${JSON.stringify(arm.job.kinds)}, with the silenced executor holding `
       + `${String(arm.burnedMs)}ms of CPU at the instant it was signalled and the survivor `
       + `${String(arm.survivorMs)}ms. A tally of granted === completed and nothing else means `
@@ -583,18 +646,41 @@ function readArm(arm: Arm, leaseMs: number): void {
   expect(arm.burnedMs).toBeGreaterThanOrEqual(BURN_MS)
   expect(arm.burnedMs).toBeGreaterThanOrEqual(arm.survivorMs)
 
-  // Every expiry names the node this arm silenced. An expiry on the *surviving* node would be
-  // a different fabric failure reported under this requirement's name.
-  for (const expiry of arm.job.expired) {
-    expect(expiry.nodeId).toBe(arm.silencedPeerId)
+  // Every loss names the node this arm silenced — of either kind, because a surrender by the
+  // SURVIVING node is a different fabric failure and would otherwise be reported under this
+  // requirement's name. Read over `expired` alone this said nothing at all about the run where
+  // every loss was a surrender.
+  for (const loss of lossesOf(arm)) {
+    expect(loss.nodeId).toBe(arm.silencedPeerId)
   }
 
   // ── The requirement's own words: *re-dispatched* on lease expiry, and answered ──────────
   //
+  // **This arrangement has ZERO placement slack, and the arithmetic is worth stating before
+  // somebody meets the symptom.** Two executors stand up and one is silenced, so every shard
+  // whose lease lapses has exactly one node left to go to. `submitJob` places again over the
+  // eligibility gate with `new Set(attempted)` removed (`job/submit.ts:3301`), and `attempted`
+  // grows by every node the shard was PLACED on (`:3236`) whatever the dispatch then did — a
+  // node that answered `over-committed` is spent as surely as one that ran the work. So a
+  // shard needing a THIRD placement has nowhere to go and ends `no-untried-node`.
+  //
+  // **Observed twice in 44 runs on 2026-09-15.** Once as a shard ending `no-untried-node`
+  // instead of `agreed`, and once as a killed arm reading `{granted 23, expired 9,
+  // surrendered 3, completed 11}` — eleven completions where twelve were placed, which is the
+  // same shard dying with nowhere left to go. Neither occurrence was captured with its shard
+  // rows, so WHY the survivor came back short is **unmeasured**. What is established is read
+  // from the source above rather than inferred from the symptom: the pool arithmetic leaves no
+  // room for one hiccup.
+  //
+  // Deliberately NOT fixed by standing a third executor up. The arms either side of this one
+  // read CPU off exactly two processes and compare them, so a third node changes what those
+  // readings mean. Naming the arithmetic is the honest half; changing the fixture is a
+  // decision about what this file measures.
+  //
   // `taskId` is the shard id, which `submitJob` sets to `String(partitionIndex)`, so an
   // expiry is joined to its shard rather than counted beside it.
-  expect(arm.job.redispatches).toBeGreaterThanOrEqual(arm.job.expired.length)
-  for (const expiry of arm.job.expired) {
+  expect(arm.job.redispatches).toBeGreaterThanOrEqual(lossesOf(arm).length)
+  for (const expiry of lossesOf(arm)) {
     const shard = arm.job.shards.find((row) => row.partitionIndex === Number(expiry.taskId))
     expect(shard).toBeDefined()
     // Two nodes attempted: the one that was silenced, and the one that answered.
@@ -707,12 +793,16 @@ describe('CHURN-04 — a lease expires across real OS processes and the shard is
      */
     const stopped = await runArm('stopped', SHORT_LEASE_MS, 'SIGSTOP')
     readArm(stopped, SHORT_LEASE_MS)
-    const killed = await runArm('killed', SHORT_LEASE_MS, 'SIGKILL')
+    const killed = await armWithLoss('killed', SHORT_LEASE_MS, 'SIGKILL')
     readArm(killed, SHORT_LEASE_MS)
 
-    // It really was killed: SIGKILL runs no handler, so this is the process saying it was
-    // killed rather than that it chose to leave.
-    expect(killed.job.expired.length).toBeGreaterThan(0)
+    // **It really was killed — asserted over losses of EITHER kind, because the kind is the
+    // race and the loss is the fact.** This read `expired.length > 0` and failed on a run whose
+    // killed arm recorded `{granted 23, surrendered 11, completed 12}`: twelve shards, eleven
+    // losses, not one of them an expiry. `readArm` above already refuses an arm with no loss
+    // at all and names what the fabric did record, so this line is the narrower claim it was
+    // always meant to be.
+    expect(lossesOf(killed).length).toBeGreaterThan(0)
     // **The day this file wrote itself a letter about has arrived, and the letter is why the
     // arms are now asserted differently.**
     //
