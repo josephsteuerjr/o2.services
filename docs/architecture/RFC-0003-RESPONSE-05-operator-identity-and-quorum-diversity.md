@@ -180,8 +180,13 @@ so nobody wrote down what the rule was supposed to resist.
 
 **Recommendation: A and B, shipped together. C deferred and recorded, not discarded.**
 
-A alone is the dangerous outcome: it removes the cheapest attack and leaves a mitigation
-claim that now looks *more* justified than before, while the attack that matters still works.
+**AMENDED 2026-09-15 together with §5.4.** The table's row for A overstates it. Rotating user
+keys is free and Phase 17 measured it (`enrollment.ts:71`), so A removes no attack an attacker
+was paying for — it removes a *free rename* and replaces it with a *free re-keying*. Read the
+row as "removes the field's ability to lie", not as a narrowing of the attack.
+
+A alone is the dangerous outcome, and for a sharper reason than first written: it changes
+nothing an attacker does, while leaving a mitigation claim that now *looks* better founded.
 B alone leaves a field nobody validates carrying the weight of the strongest claim the system
 makes. Together they say something defensible: *the fabric will call a result independent
 only when separate providers vouched for the members, and no provider will let one applicant
@@ -236,9 +241,35 @@ says what the applicant asked for, or the applicant was told no.*
 
 ### A.4 What A is worth on its own
 
-Precisely this: the attack goes from *"send the same keys again with a different string"* to
-*"generate a new keypair per identity"*. That is a real narrowing and it is cheap. It is not
-a fix, and this document must not be read as claiming it is.
+**CORRECTED 2026-09-15, before this document was planned against, and the correction is
+material.** This section read:
+
+> Precisely this: the attack goes from *"send the same keys again with a different string"* to
+> *"generate a new keypair per identity"*. That is a real narrowing and it is cheap.
+
+The second sentence is **false against an attacker**, and this repository had already measured
+why. `enrollment.ts:71`:
+
+> …nothing in an enrolment request is scarce: `userKey`, `operatorId` and `relayIds` are all
+> requester-chosen, and a fresh user key is one `ed25519.keygen()`. **Phase 17 measured that —
+> twenty requests under twenty distinct user keys all succeeded, and deleting the per-user
+> guard left the reading unchanged.**
+
+So the "narrowing" A buys is from *free* to *free*: an attacker who must mint a keypair per
+identity mints a keypair per identity, which Phase 17 clocked as costing nothing. **A is not a
+security measure and must not be counted as one.**
+
+What A is actually worth, stated without the inflation:
+
+1. **The field stops lying about what it is.** `enrollment.ts:216` calls `operatorId` "the unit
+   of quorum diversity". A field carrying that description while being dictated by the party it
+   is supposed to characterise is a defect in the vocabulary whatever its exploit value.
+2. **A serving origin cannot dictate it.** This is the browser tier's own stated concern
+   (`visitor-key.ts:298`) and A is what makes that property hold for clients that are not the
+   browser tier.
+
+Both are worth having. Neither is a reason to relax anything, and the security weight of this
+whole document rests on B.
 
 ---
 
