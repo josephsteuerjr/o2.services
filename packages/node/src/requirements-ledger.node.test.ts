@@ -2050,7 +2050,8 @@ function hookSuppliers(hook: string): string[] {
  * checked, down from 68, with 37 moved, and 68 − 35 is 33.
  */
 const CHECKED_OF_TOTAL = /\*\*(\d+) of (\d+) are `\[x\]`\.\*\*/
-const MOVED_AND_NEVER = /Of the (\d+) now unchecked, \*\*(\d+) moved\*\* and \*\*(\d+) were never checked\*\*/
+const MOVED_AND_NEVER =
+  /Of the (\d+) now unchecked, \*\*(\d+) moved\*\*, \*\*(\d+) were never checked\*\* and \*\*(\d+) were opened after the audit\*\*/
 const UNCHECKED_SPLIT = /\*\*The (\d+) unchecked boxes are (\d+) \+ (\d+) \+ (\d+)\*\*/
 const MARKER_SPLIT = /(\d+) are \*Built, not wired\*, (\d+) are \*Partial\*/
 
@@ -2089,6 +2090,27 @@ const CHECKED_BEFORE_AUDIT = 68
  * cannot move one without the other.
  */
 const NEVER_CHECKED_BEFORE_AUDIT: readonly string[] = ['AOT-03', 'AOT-05', 'BENCH-06', 'NET-03']
+
+/**
+ * Rows OPENED AFTER the v1.0 audit, which is a third population the identity below could not
+ * express until 2026-09-15.
+ *
+ * `CHECKED_BEFORE_AUDIT === V1_BOXES.size - NEVER_CHECKED_BEFORE_AUDIT.length` was written when
+ * this ledger could only ever LOSE rows, and it silently assumes every row present today either
+ * was `[x]` before the audit or is in the list above. Adding `VER-11` and `VER-12` made that
+ * false — `74 - 4` is `70`, not `68` — and the guard reddened, correctly.
+ *
+ * **The tempting repair is to put the two new ids in the list above, and it is wrong.** That
+ * list has a stated derivation — the header names the four and says they were "read out of the
+ * last revision of this file whose v1 section holds 68 `[x]`" — and a row that did not exist in
+ * that revision cannot be read out of it. Merging them would leave the list's name true by
+ * accident and its derivation false, which is the shape of defect this file exists to catch.
+ *
+ * So the population is named separately and the identity gains its third term. This NARROWS the
+ * guard rather than widening it: a row opened after the audit must now be recorded in one more
+ * place before the counts close.
+ */
+const OPENED_AFTER_AUDIT: readonly string[] = ['VER-11', 'VER-12']
 
 function numbers(pattern: RegExp): number[] {
   const match = pattern.exec(LEDGER_SOURCE)
@@ -2893,7 +2915,9 @@ describe('the header states counts that the ledger below it bears out', () => {
     // If a rewrite drops a phrasing, that is a failure here rather than a silent
     // exemption — the whole defect class is a number nothing reads.
     expect(numbers(CHECKED_OF_TOTAL)).toHaveLength(2)
-    expect(numbers(MOVED_AND_NEVER)).toHaveLength(3)
+    // Four since 2026-09-15: unchecked, moved, never-checked, opened-after-the-audit.
+    // See {@link OPENED_AFTER_AUDIT} for why a three-number split could not be honest.
+    expect(numbers(MOVED_AND_NEVER)).toHaveLength(4)
     expect(numbers(UNCHECKED_SPLIT)).toHaveLength(4)
     expect(numbers(MARKER_SPLIT)).toHaveLength(2)
   })
@@ -2905,13 +2929,19 @@ describe('the header states counts that the ledger below it bears out', () => {
   })
 
   it('splits the unchecked boxes into moved and never-checked, and the split closes', () => {
-    const [unchecked, moved, never] = numbers(MOVED_AND_NEVER)
+    const [unchecked, moved, never, opened] = numbers(MOVED_AND_NEVER)
     expect(unchecked).toBe(V1_UNCHECKED)
 
     // The baseline and the set are tied to each other rather than both asserted, so an edit
     // cannot move one and leave the other. 72 boxes, 4 of which were `[ ]` before the audit,
     // is what "down from the 68 that were checked" means as a statement about rows.
-    expect(CHECKED_BEFORE_AUDIT).toBe(V1_BOXES.size - NEVER_CHECKED_BEFORE_AUDIT.length)
+    expect(CHECKED_BEFORE_AUDIT).toBe(
+      V1_BOXES.size - NEVER_CHECKED_BEFORE_AUDIT.length - OPENED_AFTER_AUDIT.length,
+    )
+    // Both populations must really be in the ledger, and they must not overlap — a row counted
+    // in each would balance the identity above while meaning nothing.
+    for (const id of OPENED_AFTER_AUDIT) expect(V1_BOXES.has(id)).toBe(true)
+    for (const id of OPENED_AFTER_AUDIT) expect(NEVER_CHECKED_BEFORE_AUDIT).not.toContain(id)
     // And every id in it is a real v1 row — otherwise a typo would silently shrink the
     // never-checked count and inflate `moved`, which is the direction that flatters.
     for (const id of NEVER_CHECKED_BEFORE_AUDIT) expect(V1_BOXES.has(id)).toBe(true)
@@ -2923,11 +2953,19 @@ describe('the header states counts that the ledger below it bears out', () => {
     const stillNeverChecked = NEVER_CHECKED_BEFORE_AUDIT.filter(
       (id) => V1_BOXES.get(id) === false,
     ).length
+    const stillOpenedAfter = OPENED_AFTER_AUDIT.filter((id) => V1_BOXES.get(id) === false).length
     expect(never).toBe(stillNeverChecked)
-    expect(moved).toBe(V1_UNCHECKED - stillNeverChecked)
+    expect(opened).toBe(stillOpenedAfter)
+    expect(moved).toBe(V1_UNCHECKED - stillNeverChecked - stillOpenedAfter)
     // The arithmetic this replaces did not close: it read 35 checked, down from 68,
     // with 37 moved. 68 − 35 is 33, and the missing 4 are the boxes never checked.
-    expect((moved ?? 0) + (never ?? 0)).toBe(V1_UNCHECKED)
+    //
+    // **THIRD TERM ADDED 2026-09-15** — see {@link OPENED_AFTER_AUDIT}. A two-way split cannot
+    // describe a ledger that GAINS rows: `VER-11` and `VER-12` are neither "moved" (they were
+    // never `[x]`) nor "never checked before the audit" (they did not exist then), and folding
+    // them into either population would make one of the two words false while the sum still
+    // closed. A sum that closes over the wrong populations is the failure this case is for.
+    expect((moved ?? 0) + (never ?? 0) + (opened ?? 0)).toBe(V1_UNCHECKED)
   })
 
   it('splits the unchecked boxes across the three markers, and that split closes too', () => {

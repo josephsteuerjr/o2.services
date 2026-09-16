@@ -186,6 +186,49 @@ live.
 
 ---
 
+## 3c. How many providers — the decision that decides what `independent` means
+
+| | |
+|---|---|
+| **Act** | Rule: does this fabric run ONE certificate provider, or more than one? |
+| **Cost** | A second provider is a second deployed object. Saying "one" costs nothing to run and costs the `independent` claim |
+| **Why not an agent** | It is a statement about what the fabric IS, not about how any code behaves |
+| **Unblocks** | Phase 45, and therefore what the strongest integrity label is allowed to say |
+
+**The mechanism, in one paragraph.** A result is called `independent` when two or more nodes run
+by different operators agreed. The unit of that claim is `operatorId`, and the issuing provider
+copies it verbatim out of the applicant's own request — `packages/core/src/enrollment.ts:1356`.
+Nothing checks it, and there is nothing in the provider's configuration it could be checked
+against. So one party that can reach one provider mints as many "operators" as it likes, fills a
+quorum with all of them, and receives a receipt saying independent operators concurred. The full
+reading, with every file:line, is
+`docs/architecture/RFC-0003-RESPONSE-05-operator-identity-and-quorum-diversity.md`.
+
+**Why this is a decision and not a bug report.** The repair that works is to require a quorum's
+members to carry certificates from **more than one provider** (Phase 45, `VER-12`). **With one
+provider running, that makes `independent` unreachable** — the fabric would stop claiming an
+independence it does not have. That is the correct outcome and it is a real loss, so the choice
+is the owner's:
+
+- **Run a second provider.** `independent` becomes meaningful and bounded: an attacker must
+  subvert two parties rather than one. Costs a second object.
+- **Accept the lower ceiling for now.** The strongest label the fabric reports becomes
+  `single-issuer` until a second provider exists. Nothing is claimed that is not true.
+
+**Why it sits before 3b.** Row 3b turns on public, unauthenticated issuance in front of
+strangers. Phase 44 — which makes the field stop lying and puts the issuers on the receipt — must
+land before that, and Phase 44 is worth doing whichever way this rules. What this decision
+changes is whether Phase 45 follows immediately or waits. **Deciding after 3b is not fatal**,
+unlike row 10; it just means the window between opening the doors and telling the truth about
+independence is as long as the decision takes.
+
+**What neither phase fixes, so the decision is made on what it really buys**: an attacker who
+reaches two providers; providers colluding or one party running several — issuer diversity is a
+**proxy** for party diversity and must be read as one; and the cost of an identity itself, which
+only proof-of-work or invitation touches and which is deferred. Sovereign data is unaffected
+throughout: an owner-pinned shard is `owner-attested` by construction and has no quorum to
+subvert.
+
 ## 3b. The issuance throttle — a number only the owner can choose
 
 | | |
@@ -696,6 +739,7 @@ is ignored.
 | # | act | why it sits here |
 |---|---|---|
 | 10 | rule on what a peer may announce about its machine | must precede 11 — the release re-asks every returning visitor **once regardless**, and a decision taken after it costs a **second** re-ask of a cohort that is spendable once |
+| 3c | rule on how many providers the fabric will have | **must precede 3b**, and it is the newest row here — see §3c. It decides whether `independent` is a claim this fabric can support at all |
 | 3b | set the issuance budget | must precede 11 — `deploy-pages.sh` probes `/self` before it writes `enrollmentProvider`, so a client published against a node that issues nothing offers no enrolment, and no visitor can hold the certificate the TURN rung asks for |
 | 11 | cut the release | puts the tree's disclosure in front of visitors, and is the disclosure gate itself |
 | 12 | the Telegram remainder | a device that participates once is a cohort spent once |
