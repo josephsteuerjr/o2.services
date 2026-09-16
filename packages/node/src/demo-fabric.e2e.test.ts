@@ -243,6 +243,7 @@ describe('the fabric-state formatter, with no DOM and no node', () => {
           description: 'independent — two operators signed, on independent relay paths',
           replicas: 2,
           operators: ['op-a', 'op-b'],
+          issuers: [],
           userKeys: [],
           sharedRelay: null,
         },

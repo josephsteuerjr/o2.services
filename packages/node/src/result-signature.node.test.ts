@@ -12,6 +12,7 @@ import {
   canonicalCid,
   deriveReduceTree,
   executeReduce,
+  operatorIdFor,
   requestEnrollment,
   signResult,
   signName,
@@ -326,8 +327,6 @@ async function standUp(): Promise<Fixture> {
       provider.multiaddrs[0] as string,
       '--user-key',
       await writeUserKey(name, fill),
-      '--operator-id',
-      `${name}-ops`,
     ])
 
   const a = await enrol('a', USER_SEEDS[0])
@@ -484,7 +483,13 @@ describe('VER-08/09/10 — a result signed in one process verifies in another', 
       if ('kind' in shard.attestation) continue
       expect(shard.attestation.strength).toBe('independent')
       expect(shard.attestation.replicas).toBe(2)
-      expect([...shard.attestation.operators].sort()).toStrictEqual(['a-ops', 'b-ops'])
+      // Derived from the two owners this fixture spawned its agents under — VER-11. It read
+      // `['a-ops', 'b-ops']` until 2026-09-16, when the two were strings each agent was told
+      // to ask for. Two operators is two user keys now, which is what made these two nodes
+      // independent in the first place.
+      expect([...shard.attestation.operators].sort()).toStrictEqual(
+        USER_SEEDS.map((seed) => operatorIdFor(toHex(ed25519.getPublicKey(new Uint8Array(SEED_BYTES).fill(seed))))).sort(),
+      )
     }
     expect('kind' in result.job.attestation).toBe(false)
 
@@ -639,7 +644,6 @@ async function strangerSigner(): Promise<ResultSigner> {
     issuance: 'remembers-only-within-this-process',
   }).enrol(
     await requestEnrollment(STRANGER_NODE_SEED, new Uint8Array(SEED_BYTES).fill(USER_SEEDS[0]), {
-      operatorId: 'stranger-ops',
       discoverability: 'via-relay',
       relayIds: [],
     }),

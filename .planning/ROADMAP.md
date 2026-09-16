@@ -2821,11 +2821,50 @@ rather than changed; reframing the model is an owner decision.
   6. RFC-0003 gains the missing threat and the missing invariant. §14 lists twelve threats and bulk identity minting is not among them; §15 says nothing about two certificates naming different operators having reached different parties. `grep -niE "sybil|operator"` over the whole RFC returns **nothing** — the code inherited a diversity rule the RFC never stated a threat for
   7. A mutation reverting `operatorId` to the request's value turns criterion 2 red. Watched failing, restored by the surgical inverse, `cmp` verified
 
-**Plans**: not yet planned.
+**Plans**: `44-CONTEXT.md`, `44-01-PLAN.md` (the mechanism, criteria 1–4 and 7), `44-02-PLAN.md`
+(the documentation half, criteria 5 and 6).
 
+**Status 2026-09-16 — all seven criteria met, and the finding is larger than the fix.**
 
-Plans:
-- [ ] TBD (run /gsd-plan-phase 44 to break down)
+**What the phase bought, at its real size**, restated here because the design document had to
+be corrected on exactly this point and a later reader will be tempted the same way: deriving
+the identity changes **nothing an attacker does**. What it bought is that the field means what
+`enrollment.ts` says it means, and that a serving origin cannot dictate a visitor's identity.
+
+**Four fixtures in this repository were giving one owner's machines two operator names**, and
+each was a set of nodes sharing a user key while asking for distinct operator strings — so
+`classifyAttestation` read them as that many parties. `bin/bench.ts` is one of them: every
+worker starts as `bench-worker-${i}` while `ownerOfWorker` hands them all the same
+`BENCH_USER_SEED` unless `--sovereign` is passed, and the attestation rung is `--discover`.
+So **the benchmark this milestone intends to publish has been reporting `independent` over two
+processes belonging to one user.** It now reports `owner-domain`, which is what they are. The
+others were `job/submit.test.ts` (thirty-four nodes under one `OWNER_KEY`, on the live job
+path), `net/reduce-job.test.ts` and `node/quorum-agents.node.test.ts`.
+
+**One criterion could not be met as written, and that is recorded rather than worked around.**
+Criterion 7 asks for a mutation reverting `operatorId` to the request's value to redden
+criterion 2. It does not: the refusal stands above the mint, so control never reaches the mint
+with a mismatched value and the plant is **green** — a blind instrument, watched and reported.
+The property lives in the *check*, so the check is what was planted: three cases red, including
+`expected 'rate-limited' to be 'operator-id-not-derivable'`, which is the ordering rather than
+the rule. The exact pre-fix provider — both halves — reddens with
+`expected [ 'visitor:197f6b23e16c8532', …(1) ] to have a length of 1 but got 2`. Restored by
+surgical inverse, `cmp` identical, both times.
+
+**What each criterion cost, in one line each**: (1) a new `EnrollmentRefusal` arm, plus both
+halves of `protocol.ts`'s refusal codec in the same edit — that file's own docblock warned
+that adding an arm breaks the encoder and leaves the parser silently returning `null`;
+(2) the case is **hand-rolled**, because a request built through the client builder is already
+correct and would have left the mutation green; (3) the derivation lives in `@o2/core` and the
+browser calls it, so the two tiers cannot drift — and `visitorOperatorId` was then **deleted**,
+because nothing called it any more and `reachability-guard.node.test.ts` said so in the same
+commit; (4) `AttestationReceipt.issuers`, additive, refusing nothing; (5) the clause at
+`enrollment.ts:122` is kept and qualified rather than deleted, since it was true about the
+attack it was about; (6) RFC-0003 gained the threat and two invariants — `grep -niEc
+"sybil|operator"` over it returned **0**; (7) above.
+
+- [x] 44-01-PLAN.md — the provider derives the operator identity, refuses a request that disagrees, and the receipt names the issuers
+- [x] 44-02-PLAN.md — the sentence that ended a reader's search stops overstating, and RFC-0003 gains the threat it never stated
 
 ### Phase 45: Independence Bounded by the Providers an Attacker Must Subvert
 

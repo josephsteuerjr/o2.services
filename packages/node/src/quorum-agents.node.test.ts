@@ -95,7 +95,7 @@ import { join } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { ed25519 } from '@noble/curves/ed25519.js'
-import { canonicalCid, describeAttestation, signName, submitJob, toHex } from '@o2/core'
+import { canonicalCid, describeAttestation, operatorIdFor, signName, submitJob, toHex } from '@o2/core'
 import type {
   CanonicalValue,
   NameRecord,
@@ -305,6 +305,17 @@ async function writeUserKey(name: string, fill: number): Promise<string> {
 /** The one value every job below shards over, and the block discovery goes looking for. */
 const SHARD_VALUE: CanonicalValue = { shard: 'quorum-agents' }
 
+/**
+ * What a provider will sign for an agent whose `--user-key` file holds `fill` repeated.
+ *
+ * At module scope rather than inside {@link standUp}, because the readings below take it too:
+ * a fixture that wrote the seed and a provider that received its public half must arrive at
+ * one string, and every assertion about operators in this file is that comparison.
+ */
+function expectedOperator(fill: number): string {
+  return operatorIdFor(toHex(ed25519.getPublicKey(new Uint8Array(SEED_BYTES).fill(fill))))
+}
+
 interface Fixture {
   readonly provider: Agent
   readonly executors: readonly [Agent, Agent, Agent]
@@ -317,10 +328,18 @@ interface Fixture {
 /**
  * One spawned provider, three spawned agents, one in-process requestor.
  *
- * `operatorIds` is the whole of what differs between the two spawned fabrics: three
- * distinct strings compose a quorum, one string repeated three times cannot. No other
- * knob moves, which is what makes the pair a reading about the rule rather than about two
+ * `userKeyFills` is the whole of what differs between the two spawned fabrics: three
+ * distinct owners compose a quorum, one owner repeated three times cannot. No other knob
+ * moves, which is what makes the pair a reading about the rule rather than about two
  * fixtures.
+ *
+ * **It was three operator NAME strings until VER-11, 2026-09-16, and the substitution is the
+ * change in miniature.** A fixture could previously hand three agents one user key and three
+ * names and the provider would sign all three, so `one string repeated three times` was a
+ * configuration choice. It is now a consequence: the provider derives the operator identity
+ * from the user key, so the single-operator fabric is three agents that genuinely belong to
+ * one owner, and the three-operator fabric is three that genuinely do not. The fixture can no
+ * longer state the thing it is reading; it has to BE it.
  *
  * Blocks are seeded into each agent's `--dir` through `FsBlockstore` **before** the spawn,
  * because discovery answers "who holds this block" and seeding afterwards races the
@@ -328,7 +347,7 @@ interface Fixture {
  * the shard value the job later submits, so the block discovery searches for and the block
  * the task reads are the same block rather than two that travel together.
  */
-async function standUp(operatorIds: readonly [string, string, string]): Promise<Fixture> {
+async function standUp(userKeyFills: readonly [number, number, number]): Promise<Fixture> {
   const encoded = await canonicalCid(SHARD_VALUE)
   if (!encoded.ok) throw new Error('fixture value is not encodable')
 
@@ -342,26 +361,27 @@ async function standUp(operatorIds: readonly [string, string, string]): Promise<
   const provider = await spawnAgent('p', ['--issues-certificates', '--max-issued-per-window', '64'])
   if (provider.issuerKey === null) throw new Error('the provider announced no issuer key')
 
-  const enrol = async (name: string, fill: number, operatorId: string): Promise<Agent> =>
+  const enrol = async (name: string, fill: number): Promise<Agent> =>
     spawnAgent(name, [
       '--provider-addr',
       provider.multiaddrs[0] as string,
       '--user-key',
       await writeUserKey(name, fill),
-      '--operator-id',
-      operatorId,
     ])
 
-  const x = await enrol('x', 0xb7, operatorIds[0])
-  const y = await enrol('y', 0xb8, operatorIds[1])
-  const z = await enrol('z', 0xb9, operatorIds[2])
+  const x = await enrol('x', userKeyFills[0])
+  const y = await enrol('y', userKeyFills[1])
+  const z = await enrol('z', userKeyFills[2])
 
   // The operator id is a provider's statement, not the fixture's — asserted here once so
   // every reading below can be taken off the certificate rather than off the spawn args.
+  // Since VER-11 that sentence is load-bearing rather than descriptive: the expected value is
+  // computed from the SEED this fixture wrote, and the provider computed its own from the
+  // public half it was sent, so the two agree only if the provider really did derive it.
   for (const [agent, operatorId] of [
-    [x, operatorIds[0]],
-    [y, operatorIds[1]],
-    [z, operatorIds[2]],
+    [x, expectedOperator(userKeyFills[0])],
+    [y, expectedOperator(userKeyFills[1])],
+    [z, expectedOperator(userKeyFills[2])],
   ] as const) {
     expect(agent.certificate?.issuer).toBe(provider.issuerKey)
     expect(agent.certificate?.operatorId).toBe(operatorId)
@@ -477,7 +497,7 @@ afterEach(async () => {
 
 describe('criterion 1 — three operators, a quorum whose independence is read off certificates', () => {
   it('composes across two distinct operators that share no relay, and labels it independent', async () => {
-    const fixture = await standUp(['x-ops', 'y-ops', 'z-ops'])
+    const fixture = await standUp([0xb7, 0xb8, 0xb9])
     const { executors, requestor } = fixture
 
     // **Membership, never a count.** A count of three is satisfiable by the wrong three
@@ -536,16 +556,28 @@ describe('criterion 1 — three operators, a quorum whose independence is read o
     // ---- The operators are the provider's, not the fixture's. ----------------------
     // Taken from the receipt — which `receiptFor` built out of certificates whose
     // holders' signatures over THIS task and THIS output verified — and compared against
-    // the `--operator-id` strings the two winning PROCESSES were spawned with. A fixture
-    // field could not fail this comparison; a signed statement can.
+    // what a provider WOULD derive from the `--user-key` file each winning PROCESS was
+    // spawned with. A fixture field could not fail this comparison; a signed statement can.
+    //
+    // **It compared against the `--operator-id` strings until VER-11, 2026-09-16**, and the
+    // comparison got stronger when the flag went: a string this fixture chose and handed over
+    // could only ever check that the provider echoed it, whereas a value derived from a key
+    // checks that the provider did the derivation.
     const attestation = shard.attestation
     if ('kind' in attestation) {
       throw new Error(`expected a receipt, got the named absence: ${attestation.reason}`)
     }
+    const seedOf: ReadonlyMap<string, number> = new Map([
+      ['x', 0xb7],
+      ['y', 0xb8],
+      ['z', 0xb9],
+    ])
     const spawnedOperatorOf = (nodeId: string): string => {
       const agent = executors.find((a) => a.peerId === nodeId)
       if (agent === undefined) throw new Error(`${nodeId} is not one of the spawned agents`)
-      return `${agent.name}-ops`
+      const fill = seedOf.get(agent.name)
+      if (fill === undefined) throw new Error(`${agent.name} has no user-key seed in this fixture`)
+      return expectedOperator(fill)
     }
     expect([...attestation.operators].sort()).toStrictEqual(agreed.map(spawnedOperatorOf).sort())
     expect(new Set(attestation.operators).size).toBe(2)
@@ -593,7 +625,10 @@ describe('criterion 1 — three operators, a quorum whose independence is read o
 describe('criterion 1 engineered — one operator: degraded by default, refused on request', () => {
   it('degrades to owner-domain on the default dial, is refused in the composer’s words on the strict one, and leaves a redundancy-1 job untouched by either', async () => {
     // The engineered condition, and the only thing that differs from the case above.
-    const fixture = await standUp(['one-ops', 'one-ops', 'one-ops'])
+    // One owner three times, which is what a single-operator fabric now IS. Three agents,
+    // three processes, three node keys — and one user key, so the provider derives one
+    // operator identity for all three and `composeQuorum` finds one where it needs two.
+    const fixture = await standUp([0xb7, 0xb7, 0xb7])
     const { executors, requestor } = fixture
 
     // **Membership, never a count.** A count of three is satisfiable by the wrong three
@@ -624,7 +659,7 @@ describe('criterion 1 engineered — one operator: degraded by default, refused 
     const operators = new Set(
       found.nodes.map((node) => certificateOf(found.nodes, node.nodeId).operatorId),
     )
-    expect([...operators]).toStrictEqual(['one-ops'])
+    expect([...operators]).toStrictEqual([expectedOperator(0xb7)])
 
     // One object, one varying field. See this describe's doc.
     const submitOver = async (
@@ -689,7 +724,7 @@ describe('criterion 1 engineered — one operator: degraded by default, refused 
     expect(degradedAttestation.strength).not.toBe('independent')
     expect(degradedAttestation.description).toBe(describeAttestation('owner-domain'))
     expect(degradedAttestation.replicas).toBe(2)
-    expect([...degradedAttestation.operators]).toStrictEqual(['one-ops'])
+    expect([...degradedAttestation.operators]).toStrictEqual([expectedOperator(0xb7)])
 
     // ---- A-refuse: the strict arm, over the SAME live agents. ----------------------
     const refuseRun = await submitOver(2, 'refuses-the-shard')
@@ -784,8 +819,6 @@ describe('criterion 1’s precondition — `bin/agent.ts` can produce a node tha
         provider.multiaddrs[0] as string,
         '--user-key',
         await writeUserKey(name, fill),
-        '--operator-id',
-        `${name}-ops`,
         '--relay-addr',
         relayAddr,
         ...port,
@@ -969,8 +1002,6 @@ async function standUpBehindOneRelay(): Promise<RelayedFixture> {
       provider.multiaddrs[0] as string,
       '--user-key',
       await writeUserKey(name, fill),
-      '--operator-id',
-      operatorId,
       // The two flags that make this a `via-relay` node, and the absence that makes them
       // work: no `--port`, so `bin/agent.ts` binds nothing at all.
       '--relay-addr',

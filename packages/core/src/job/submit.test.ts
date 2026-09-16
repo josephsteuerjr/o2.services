@@ -1,12 +1,14 @@
+import { ed25519 } from '@noble/curves/ed25519.js'
 import { describe, expect, it } from 'vitest'
 import { CID } from 'multiformats/cid'
 import { MemoryBlockstore } from '../blockstore/memory.ts'
 import { canonicalCid } from '../canonical/encode.ts'
 import type { CanonicalValue } from '../canonical/encode.ts'
 import type { JobCheckpoint } from '../checkpoint.ts'
+import { toHex } from '../capability.ts'
 import { describeCoverage } from '../coverage.ts'
 import type { CoverageReport } from '../coverage.ts'
-import { EnrollmentAuthority, requestEnrollment } from '../enrollment.ts'
+import { EnrollmentAuthority, operatorIdFor, requestEnrollment } from '../enrollment.ts'
 import type { NodeCertificate } from '../enrollment.ts'
 import { DEFAULT_LEASE_MS, DEFAULT_MAX_GENERATIONS } from '../lease.ts'
 import { signName } from '../naming.ts'
@@ -2941,6 +2943,44 @@ const PROVIDER_KEY = new Uint8Array(32).fill(19)
 const OTHER_PROVIDER_KEY = new Uint8Array(32).fill(21)
 const OWNER_KEY = new Uint8Array(32).fill(20)
 
+/**
+ * The user key a named operator's nodes belong to — one key per operator name.
+ *
+ * ## Why this exists, and why it is a finding rather than a fixture repair — VER-11, 2026-09-16
+ *
+ * Every node in this file used to enrol under the single `OWNER_KEY` above while asking for a
+ * distinct `operatorId` string, and the provider copied that string into the certificate
+ * without checking anything. So the quorums composed below — on the **live job path**, which
+ * is what this file exists to exercise — were built from **thirty-four nodes belonging to one
+ * user**, and `classifyAttestation` read them as that many independent parties because two
+ * different strings is all it has ever asked for.
+ *
+ * The provider now derives `operatorId` from `userKey`, so a fixture that wants two operators
+ * has to supply two owners. That is not a concession to the check: it is what "two operators"
+ * has always meant here — {@link NodeCertificate}'s own words, *three nodes run by one
+ * operator are one failure domain and one attacker*. One key per name keeps every case's
+ * intent exactly — two nodes asking for the same name are still one operator and still
+ * `owner-domain`; two asking for different names are still independent — while making the
+ * fixture state the thing it was relying on.
+ *
+ * Derived from the operator name rather than a counter so the mapping is stable across runs
+ * and a reader can see which owner a certificate belongs to without tracing call order.
+ */
+function operatorOf(operatorId: string): string {
+  return operatorIdFor(toHex(ed25519.getPublicKey(ownerKeyFor(operatorId))))
+}
+
+function ownerKeyFor(operatorId: string): Uint8Array {
+  const seed = new Uint8Array(32)
+  seed.set(OWNER_KEY)
+  for (let i = 0; i < operatorId.length; i++) {
+    // Folded over the whole 32 bytes so two names differing only in their tail still land on
+    // different keys; `^` rather than `+` so no carry can make two names collide by wrapping.
+    seed[i % 32] = ((seed[i % 32] ?? 0) ^ operatorId.charCodeAt(i)) & 0xff
+  }
+  return seed
+}
+
 function authorityFor(providerPrivateKey: Uint8Array): EnrollmentAuthority {
   return new EnrollmentAuthority({
     providerPrivateKey,
@@ -2969,7 +3009,7 @@ async function enrol(
   nodeSeedCounter += 1
   const nodeSeed = new Uint8Array(32).fill(nodeSeedCounter)
   const issued = authorityFor(providerPrivateKey).enrol(
-    await requestEnrollment(nodeSeed, OWNER_KEY, { operatorId, discoverability: 'via-relay', relayIds }),
+    await requestEnrollment(nodeSeed, ownerKeyFor(operatorId), { discoverability: 'via-relay', relayIds }),
     issuedAt,
   )
   if (!issued.ok) throw new Error(`fixture failed to enrol ${nodeId}: ${JSON.stringify(issued.refusal)}`)
@@ -2990,7 +3030,7 @@ async function enrolSeed(nodeId: string, operatorId: string): Promise<Enrolled> 
   nodeSeedCounter += 1
   const nodeSeed = new Uint8Array(32).fill(nodeSeedCounter)
   const issued = authorityFor(PROVIDER_KEY).enrol(
-    await requestEnrollment(nodeSeed, OWNER_KEY, { operatorId, discoverability: 'seed', relayIds: [] }),
+    await requestEnrollment(nodeSeed, ownerKeyFor(operatorId), { discoverability: 'seed', relayIds: [] }),
     Date.now(),
   )
   if (!issued.ok) throw new Error(`fixture failed to enrol ${nodeId}: ${JSON.stringify(issued.refusal)}`)
@@ -3105,7 +3145,7 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({
       strength: 'owner-domain',
       replicas: 2,
-      operators: ['op-bob'],
+      operators: [operatorOf('op-bob')],
     })
   })
 
@@ -3131,7 +3171,7 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({
       strength: 'independent',
       replicas: 2,
-      operators: ['op-a', 'op-b'],
+      operators: [operatorOf('op-a'), operatorOf('op-b')].sort(),
     })
   })
 
@@ -3208,8 +3248,10 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     // it.
     const a = await enrol('a', 'op-a', ['relay-a'], PROVIDER_KEY, Date.now() - 60_000)
     const renewed = authorityFor(PROVIDER_KEY).enrol(
-      await requestEnrollment(a.signer.nodeSeed, OWNER_KEY, {
-        operatorId: 'op-a',
+      // `ownerKeyFor('op-a')` and not `OWNER_KEY`: this is the SAME node renewing, so it must
+      // present the same user key it first enrolled under, or the provider derives a
+      // different operator identity and the certificate is about a different party.
+      await requestEnrollment(a.signer.nodeSeed, ownerKeyFor('op-a'), {
         discoverability: 'via-relay',
         relayIds: ['relay-a', 'relay-a2'],
       }),
@@ -3389,7 +3431,7 @@ describe('VER-03/VER-04 — a public shard wanting verification gets a composed 
     const shard = r.job.shards[0] as ShardResult
     expect(shard.quorum).toMatchObject({ kind: 'composed' })
     if (shard.quorum.kind === 'composed') {
-      expect([...shard.quorum.operators].sort()).toStrictEqual(['op-a', 'op-b'])
+      expect([...shard.quorum.operators].sort()).toStrictEqual([operatorOf('op-a'), operatorOf('op-b')].sort())
     }
     expect(shard.degraded).toBe(false)
     expect(shard.attestation).toMatchObject({ strength: 'independent' })

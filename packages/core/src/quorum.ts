@@ -387,6 +387,24 @@ export interface AttestationReceipt {
   readonly description: string
   readonly replicas: number
   readonly operators: readonly string[]
+  /**
+   * The providers that vouched for these replicas — VER-11, Phase 44.
+   *
+   * **Reported, and nothing refuses on it yet, which is the whole of what this field is.**
+   * `operatorId` is now derived by the issuer from a key it holds a proof for, so two
+   * operators are two user keys rather than two strings an applicant chose. What that does
+   * NOT establish is that they are two *parties*: an attacker who reaches one provider mints
+   * as many user keys as they like, and every certificate is signed by that one provider.
+   * Until this field existed the quorum could not even express the question — `issuer`
+   * appeared zero times in this file.
+   *
+   * Making the dimension visible is separable from acting on it, and they are separated on
+   * purpose: requiring distinct issuers makes `'independent'` unreachable on a fabric with
+   * one provider, which is a decision about how many providers this fabric will have and
+   * therefore not an agent's to take. Phase 45 imposes the rule once that is settled. A
+   * reader who sees one issuer here already has the fact.
+   */
+  readonly issuers: readonly PublicKeyHex[]
   readonly userKeys: readonly PublicKeyHex[]
   /** A relay every replica depended on, or `null` when their paths were independent. */
   readonly sharedRelay: string | null
@@ -400,6 +418,7 @@ export function attestationReceipt(agreeing: readonly NodeCertificate[]): Attest
     description: describeAttestation(strength),
     replicas: agreeing.length,
     operators: [...new Set(agreeing.map((c) => c.operatorId))].sort(),
+    issuers: [...new Set(agreeing.map((c) => c.issuer))].sort(),
     userKeys: [...new Set(agreeing.map((c) => c.userKey))].sort(),
     sharedRelay: sharedRelay(agreeing),
   }

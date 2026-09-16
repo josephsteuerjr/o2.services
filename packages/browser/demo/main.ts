@@ -132,7 +132,6 @@ import {
   revokeConsent,
   revokeEnrolment,
   visitorKeyPair,
-  visitorOperatorId,
 } from '@o2/browser'
 import type {
   GrantedConsent,
@@ -991,7 +990,6 @@ export async function signinFacts(): Promise<{
  */
 async function visitorEnrolmentOption(providerAddr: string): Promise<{
   readonly userPrivateKey: CryptoKeyPair
-  readonly operatorId: string
   readonly providerAddr: string
 } | null> {
   // A non-secure origin cannot hold a key the page is unable to read, and a key the page
@@ -1000,9 +998,13 @@ async function visitorEnrolmentOption(providerAddr: string): Promise<{
   // origin that has since lost `crypto.subtle` must not turn into a page that will not load.
   if (!canHoldVisitorKey()) return null
   const keyPair = await visitorKeyPair(identityProtection())
+  // `operatorId: await visitorOperatorId(keyPair)` was returned here until 2026-09-16.
+  // Nothing is lost: the provider derives that value from the public half of this very key
+  // pair, by the same function `visitorOperatorId` calls (VER-11). This page used to supply
+  // it as a courtesy and the provider took it on trust; it now supplies the key and the
+  // provider does the deriving, which is the half of the exchange that was missing.
   return {
     userPrivateKey: keyPair,
-    operatorId: await visitorOperatorId(keyPair),
     providerAddr,
   }
 }
@@ -2230,8 +2232,11 @@ const api: TabApi = {
         //     with `extractable: false`, and **the script this origin served cannot read
         //     it**; measured in chromium, firefox and webkit. There is no parameter,
         //     anywhere on this path, through which key material could be supplied.
-        //   - `operatorId` — derived from that key. Not readable from `/bootstrap.json`
-        //     even if it were published there, because nothing reads it from there.
+        //   - `operatorId` — **no longer sent at all, and the objection is answered more
+        //     strongly than it was.** This page used to derive it from the key above and
+        //     hand it over; since VER-11 the provider derives it from the same key, so
+        //     there is no field on this path for an origin to fill in even wrongly. It was
+        //     already unreadable from `/bootstrap.json`; it is now unstateable.
         //
         // And the decision itself is `acceptEnrolment`, which takes **no arguments at all**.
         // An origin can cause this page to render an offer. It cannot cause the offer to be
@@ -2247,7 +2252,6 @@ const api: TabApi = {
           : {
               enrollment: {
                 userPrivateKey: new Uint8Array(options.enrollment.userPrivateKey),
-                operatorId: options.enrollment.operatorId,
                 providerAddr: options.enrollment.providerAddr,
               },
             }),

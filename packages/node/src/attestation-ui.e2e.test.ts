@@ -367,7 +367,6 @@ async function startEnrolled(
         blockstoreName: options.store,
         enrollment: {
           userPrivateKey: options.userPrivateKey,
-          operatorId: options.operatorId,
           providerAddr: options.providerAddr,
         },
       }),

@@ -615,7 +615,6 @@ beforeAll(async () => {
     trustAnchors: TRUST_ANCHORS,
     enrollment: {
       userPrivateKey: MEMBER_USER_PRIVATE_KEY,
-      operatorId: MEMBER_OPERATOR_ID,
       providerAddr,
     },
   })

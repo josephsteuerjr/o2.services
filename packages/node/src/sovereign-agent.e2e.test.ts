@@ -387,8 +387,6 @@ async function standUp(): Promise<Fixture> {
       (provider.handshake['multiaddrs'] as string[])[0] as string,
       '--user-key',
       seedPath,
-      '--operator-id',
-      `${name}-ops`,
       // A pinned trust anchor, deliberately not derived by the binary — see `--owner-key`.
       '--owner-key',
       userKey,

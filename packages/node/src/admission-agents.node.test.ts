@@ -465,8 +465,6 @@ async function standUp(): Promise<Fixture> {
             directAddrOf(under),
             '--user-key',
             await writeUserKey(name, fill),
-            '--operator-id',
-            `${name}-ops`,
           ]),
     ])
 
