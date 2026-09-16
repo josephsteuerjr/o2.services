@@ -597,7 +597,15 @@ describe('AUTH-05/VER-08/VER-09 — an owner’s own processes verify each other
     // VER-10, stated directly rather than implied by the line above. This is the
     // conflation the requirement forbids, and an implementation that returned the stronger
     // label unconditionally would satisfy every other assertion in this block.
+    //
+    // **Two labels sit above `owner-domain` since 2026-09-16, VER-12**, so a single refusal
+    // stopped covering the failure this line is for: an implementation returning "the stronger
+    // label" now has two of them to return, and one of them would have gone unnamed. Both are
+    // refused. The guard still passes as written — it was not reddened by the insertion — which
+    // is exactly why it needed reading: a check that keeps passing while its reach shrinks is
+    // the kind that is never revisited.
     expect(shardA.attestation.strength).not.toBe('independent')
+    expect(shardA.attestation.strength).not.toBe('single-issuer')
     expect(shardA.attestation.replicas).toBe(2)
     expect(shardA.attestation.operators).toStrictEqual([OWNER_OPERATOR])
     expect(shardA.attestation.userKeys).toStrictEqual([OWNER_USER_KEY])
@@ -647,7 +655,10 @@ describe('AUTH-05/VER-08/VER-09 — an owner’s own processes verify each other
     expect('kind' in shardB.attestation).toBe(false)
     if ('kind' in shardB.attestation) return
     expect(shardB.attestation.strength).toBe('owner-attested')
+    // Both strong labels, for the reason given at the matching line in the block above: one
+    // refusal stopped being exhaustive when a third label appeared above `owner-domain`.
     expect(shardB.attestation.strength).not.toBe('independent')
+    expect(shardB.attestation.strength).not.toBe('single-issuer')
     expect(shardB.attestation.replicas).toBe(1)
     expect(shardB.attestation.operators).toStrictEqual([OWNER_OPERATOR])
     expect(shardB.attestation.description).toContain('not independently verified')
