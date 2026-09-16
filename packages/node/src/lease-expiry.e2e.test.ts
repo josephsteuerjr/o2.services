@@ -683,6 +683,20 @@ describe('CHURN-04 — a lease expires across real OS processes and the shard is
      * the direction it named (*"an `rpcTimeoutMs` above the lease"*), reached from the other
      * side, and the belief that the signal decides the kind is not.
      *
+     * **SUPERSEDED 2026-09-15, and only the sentence in bold above.** That reading is left
+     * standing because it is what four runs showed on the day it was taken; it is wrong as a
+     * rule. Re-measured across four runs of this case with the surrendering node's identity
+     * emitted, the killed arm read `expired 12 / surrendered 0` twice and `expired 11 /
+     * surrendered 1` twice — and the surrendering node was the SILENCED peer itself, on the
+     * last shard, the one in flight when the signal landed. So a closed socket **sometimes**
+     * returns the outstanding dispatch inside the lease. Which way it goes is the transport's
+     * race rather than the signal's property, and `churn-agents.node.test.ts`' opposite
+     * reading is that same race seen from its other side. The lease constant is also no longer
+     * 1 000: `SHARDS`-wide runs use `SHORT_LEASE_MS`, which is 2 000.
+     *
+     * What survives untouched is the paragraph below — the signal decides the **probe**, not
+     * the dispatch — and it is what the `heldMs` assertion at the end of this case reads.
+     *
      * What the signal *does* decide is measured too, and it is the renewal probe rather than
      * the dispatch. A stopped process holds its socket open, so the probe at `RENEW_AT` waits
      * the full `DEFAULT_PROBE_TIMEOUT_MS` for an answer that never comes; a killed one's
@@ -699,12 +713,67 @@ describe('CHURN-04 — a lease expires across real OS processes and the shard is
     // It really was killed: SIGKILL runs no handler, so this is the process saying it was
     // killed rather than that it chose to leave.
     expect(killed.job.expired.length).toBeGreaterThan(0)
-    // No loss on this fabric was reported as a surrender in either arm. Recorded as an
-    // assertion rather than as a sentence, so the day the transport starts propagating a
-    // closed socket into an outstanding request this file says so instead of the comment
-    // quietly going stale.
-    expect(stopped.job.kinds['surrendered']).toBeUndefined()
-    expect(killed.job.kinds['surrendered']).toBeUndefined()
+    // **The day this file wrote itself a letter about has arrived, and the letter is why the
+    // arms are now asserted differently.**
+    //
+    // Both arms used to assert `kinds['surrendered']` was undefined, with the note that it was
+    // written as an assertion *"so the day the transport starts propagating a closed socket
+    // into an outstanding request this file says so instead of the comment quietly going
+    // stale"*. It said so. Measured across four runs of this case on a quiet host, with the
+    // surrendering node's identity emitted for the reading:
+    //
+    // | run | stopped            | killed              |
+    // |-----|--------------------|---------------------|
+    // | 1   | expired 12, surr 0 | expired 12, surr 0  |
+    // | 2   | expired 12, surr 0 | expired 11, surr 1  |
+    // | 3   | expired 12, surr 0 | expired 12, surr 0  |
+    // | 4   | expired 12, surr 0 | expired 11, surr 1  |
+    //
+    // The surrendering `nodeId` was the SILENCED peer itself, every time, and always on the
+    // same task — the last shard, the one in flight when the signal landed. So the docblock's
+    // *"SIGKILL produces `expired`, not `surrendered`"* is true of the run it was measured on
+    // and false as a rule: a closed socket sometimes returns the outstanding dispatch inside
+    // the lease and sometimes does not, and which one happens is the transport's race, not the
+    // signal's property. `churn-agents.node.test.ts`' opposite reading is the same race seen
+    // from its other side.
+    //
+    // **The SIGSTOP arm keeps the strict assertion**, because there the mechanism forbids the
+    // race rather than merely losing it: a frozen process holds its socket open, so nothing
+    // comes back and every loss is silence. Four of four agree, and if that ever changes it is
+    // a finding about the transport worth a red.
+    expect(
+      stopped.job.kinds['surrendered'],
+      'a SIGSTOPped holder surrendered a lease. Its socket stays OPEN, so no dispatch can come ' +
+        'back and every loss must be silence — a surrender here means the transport reported a ' +
+        'hard failure against a process that is merely frozen.',
+    ).toBeUndefined()
+
+    // **What the killed arm asserts instead, and the first version of THIS was wrong too.**
+    //
+    // It first read `expired + surrendered === SHARDS`, on the strength of eight readings that
+    // all showed twelve losses over twelve shards. Soaked, it failed 2/4 with `expired 8,
+    // surrendered 3` — eleven, not twelve — and the eleven is correct: a shard that finished
+    // on its FIRST holder, before the signal landed, never lost a lease at all. Twelve was an
+    // accident of how far the job had got when the kill arrived, and a number that agrees with
+    // a theory is not the theory's proof.
+    //
+    // What is actually invariant is the lease table's bookkeeping: every grant ends exactly
+    // once, and `lease.ts` gives it exactly three endings — `completed`, `expired`,
+    // `surrendered`. `renewed` extends a grant rather than ending one and `abandoned` is a
+    // property of the task, so neither belongs in the sum. A grant that ends in none of the
+    // three is a lease the table forgot, which is the defect this case would actually want to
+    // hear about — and unlike the shard count it does not move with the timing of the signal.
+    const ends = (['completed', 'expired', 'surrendered'] as const).reduce(
+      (total, kind) => total + (killed.job.kinds[kind] ?? 0),
+      0,
+    )
+    expect(
+      ends,
+      `the killed arm granted ${String(killed.job.kinds['granted'])} leases and ended ` +
+        `${String(ends)} of them: ${JSON.stringify(killed.job.kinds)}. Every grant ends exactly ` +
+        'once — completed, expired or surrendered — so a grant in none of the three is a lease ' +
+        'the table lost track of.',
+    ).toBe(killed.job.kinds['granted'] ?? 0)
 
     // The probe, not the dispatch, is what the signal changes: every killed-arm expiry landed
     // sooner than every stopped-arm one, at the same lease.

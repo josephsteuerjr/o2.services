@@ -425,12 +425,33 @@ describe('RUN-02 criterion 1 — one region’s tabs stop, the other two go on w
     }
     const beforeMs = Date.now() - beforeAt
 
+    // **The floor reads WORK DONE, not work still moving — third correction, measured.**
+    //
+    // It asked `beforeDelta > 0` and failed 3/3 on a quiet host (load/core 1.97, 2.43, 2.47)
+    // naming `bootstrap-us`. Instrumented, the reason is not that the tab was idle but the
+    // opposite: `us` and `eu` read `start=128` and `delta=0` while `sam` read `start=0` and
+    // `delta=43`. **128 is `CUBES` exactly** — the first two tabs had finished the entire
+    // colouring run before the window opened, because `startTab` goes, signs in, starts and
+    // dispatches for each region in turn, and the whole run is roughly 6 s at
+    // `dutyCycle: 0.5` while standing three tabs up takes longer than that for the first two.
+    //
+    // A finished run and a run that never began are opposite facts, and a delta cannot tell
+    // them apart. **This is window 2's own correction, which this file already made and did
+    // not carry back here**: see it stated forty lines below — *"An after-window delta of zero
+    // is a run that completed, not a tab that died."* Same arithmetic, same file, one window
+    // earlier.
+    //
+    // So the floor asks what it always meant to ask: has this tab executed anything at all.
+    // It is not weakened by the change — a tab with no node is already excluded above by
+    // `activity()` answering `null`, and a tab that started and took nothing still reads 0.
     for (const region of HOSTED_OBJECT_NAMES) {
+      const executedTotal = (beforeStart.get(region) ?? 0) + (beforeDelta.get(region) ?? 0)
       expect(
-        beforeDelta.get(region),
-        `criterion 1's floor: ${region}'s tab admitted ${String(beforeDelta.get(region))} tasks ` +
-          `across ${String(beforeMs)} ms, i.e. it was not working. A halt measured against a tab ` +
-          'that never started measures nothing.',
+        executedTotal,
+        `criterion 1's floor: ${region}'s tab has admitted no task at all — ` +
+          `${String(beforeStart.get(region))} before the window and ${String(beforeDelta.get(region))} ` +
+          `across its ${String(beforeMs)} ms. A halt measured against a tab that never started ` +
+          'measures nothing.',
       ).toBeGreaterThan(0)
     }
 
@@ -481,7 +502,8 @@ describe('RUN-02 criterion 1 — one region’s tabs stop, the other two go on w
     // Printed before the assertions, so a red run carries its own numbers.
     for (const region of HOSTED_OBJECT_NAMES) {
       console.log(
-        `[RUN-02 regions] ${region} before=${String(beforeDelta.get(region))} tasks/${String(beforeMs)} ms ` +
+        `[RUN-02 regions] ${region} started-at=${String(beforeStart.get(region))} ` +
+          `before=${String(beforeDelta.get(region))} tasks/${String(beforeMs)} ms ` +
           `after=${String(afterDelta.get(region))} tasks/${String(afterMs)} ms ` +
           `ratio=${ratio(region).toFixed(3)}`,
       )
