@@ -43,6 +43,14 @@ import { stripComments } from './strip-comments.ts'
  * 34 / 26 / 31 occurrences of the three pre-existing strength names, every one an
  * assertion, and every one correct. A guard that reddened those would be deleted the first
  * week.
+ *
+ * ## The second subject: the release copy
+ *
+ * The ROADMAP gate paragraph committed at `4ff8a36` says the public copy for the release
+ * must not promise an independence the fabric will not report, and that this phase must
+ * **check** it rather than assume it. The second `describe` is that check, with both
+ * controls, because "the copy is clean" and "the pattern matches nothing" are
+ * indistinguishable without them.
  */
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
@@ -541,5 +549,135 @@ describe('the ordering callers depend on, read from the module', () => {
     // the loop above if the collapse were at the ends.
     expect(new Set(ranks).size).toBe(4)
     expect(STRENGTHS.length).toBe(4)
+  })
+})
+
+/* -------------------------------------------------------------------------------------- */
+
+/**
+ * The release copy, checked against the independence this fabric will now report.
+ *
+ * The obligation is the ROADMAP's, committed at `4ff8a36`: *"the public copy for the
+ * release must not promise an independence the fabric will not report — that copy is Phase
+ * 39's, and this phase must check it rather than assume it."*
+ *
+ * ## The distinction that is the whole difficulty
+ *
+ * The promise refused here is an independent **verification** claim — that some result was
+ * checked by a party the first one does not control. It is NOT the project's core-value
+ * sentence about independently-**owned** devices, which is true, is the point of the
+ * project, and appears in `README.md` today. Nor is it *"independent cubes"*, a statement
+ * that the search space partitions. So the patterns below name verbs of checking, and the
+ * negative controls are built out of those two real sentences rather than invented.
+ *
+ * ## What it deliberately DOES fire on, which reads like an over-fire and is not
+ *
+ * `describeAttestation('owner-attested')` ends *"not independently verified"* — a refusal
+ * of the promise, and these patterns would report it. That is intended. A release page
+ * carrying any arm of the kernel's sentence statically has a copy of words whose author is
+ * `quorum.ts`, and this phase has already found one such copy that drifted:
+ * `docs/design/mockups/o2-fabric-demo/o2 Fabric Demo.dc.html` hardcodes three of the four
+ * and now disagrees with the kernel by a whole arm. The demo's own attestation card does
+ * the right thing instead — it is a `data-kind="reading"` region and prints whatever the
+ * kernel hands it, so it holds no sentence for this scan to find.
+ */
+describe('the release copy promises no independence this fabric will not report', () => {
+  /**
+   * Named by path, because the release copy is small, fixed, and the ROADMAP names it.
+   * A path that goes missing must redden rather than silently shrink the corpus.
+   */
+  const RELEASE_COPY: readonly string[] = [
+    'docs/recruitment/telegram-invite.md',
+    'packages/browser/demo/index.html',
+    'packages/browser/demo/policy.html',
+    'packages/browser/demo/status.html',
+    'README.md',
+  ]
+
+  /**
+   * Markdown here is hard-wrapped at ~78 columns and the HTML is indented, so a phrase a
+   * reader sees as one sentence is two lines in the file and matches no line-wise rule.
+   * `licensing-consistency.node.test.ts` established this by writing four rules line-wise
+   * first and watching them fail on correct documents.
+   */
+  const flatten = (text: string): string => text.replace(/\s+/g, ' ')
+
+  const CLAIMS: readonly { readonly promise: string; readonly pattern: RegExp }[] = [
+    { promise: 'independent verification', pattern: /independently verified/ },
+    { promise: 'independent verification', pattern: /independent verification/ },
+    { promise: 'independent verification', pattern: /verified independently/ },
+    { promise: 'an independent check', pattern: /independently checked/ },
+    // `(?!list)` so an independent checklist — an ordinary document — is not a claim.
+    { promise: 'an independent check', pattern: /independent check(?!list)/ },
+    { promise: 'independent operators having agreed', pattern: /independent operators agreed/ },
+  ]
+
+  function copyFindings(file: string, text: string): Finding[] {
+    const flat = flatten(text)
+    const found: Finding[] = []
+    for (const { promise, pattern } of CLAIMS) {
+      const search = new RegExp(pattern.source, 'gi')
+      let match = search.exec(flat)
+      while (match !== null) {
+        found.push({
+          paths: [file, SELF],
+          line:
+            `${file} promises ${promise} — "${match[0]}" in: ` +
+            `…${flat.slice(Math.max(0, match.index - 100), match.index + match[0].length + 100)}…`,
+        })
+        match = search.exec(flat)
+      }
+    }
+    return found
+  }
+
+  /** The slice of flattened text around `phrase`, for a control lifted from a real file. */
+  function around(flat: string, phrase: string): string {
+    const at = flat.indexOf(phrase)
+    if (at === -1) return ''
+    return flat.slice(Math.max(0, at - 180), at + phrase.length + 180)
+  }
+
+  it('has every named path on disk, so an absence is a red and not a silent skip', () => {
+    const missing = RELEASE_COPY.filter((file) => {
+      try {
+        read(file)
+        return false
+      } catch {
+        return true
+      }
+    })
+    expect(missing).toEqual([])
+    expect(RELEASE_COPY.length).toBe(5)
+  })
+
+  it('reports a planted promise — the control without which a clean read means nothing', () => {
+    const planted = 'Every answer is independently verified by separate operators.'
+    const found = copyFindings('README.md', planted)
+    expect(found.length).toBe(1)
+    expect(found[0]?.line).toContain('independent verification')
+    expect(found[0]?.paths).toEqual(['README.md', SELF])
+  })
+
+  it('leaves the two true independence sentences this tree already carries alone', () => {
+    // Lifted out of the files rather than transcribed, and each control is checked alive
+    // first: a control that silently found nothing would report "no finding" for the wrong
+    // reason, which is the failure this whole describe is built against.
+    const ownership = around(flatten(read('README.md')), 'independently-owned nodes')
+    expect(ownership).toContain('independently-owned nodes')
+    expect(copyFindings('README.md', ownership)).toEqual([])
+
+    const cubes = around(flatten(read('packages/browser/demo/index.html')), 'independent cubes')
+    expect(cubes).toContain('independent cubes')
+    // The same slice carries the redundancy claim — "every cube is run on two of them and
+    // the two must agree" — which is about REPLICAS rather than providers, is true, and is
+    // untouched by this phase. It must not be a finding either.
+    expect(cubes).toContain('the two must agree')
+    expect(copyFindings('packages/browser/demo/index.html', cubes)).toEqual([])
+  })
+
+  it('makes no independent-verification promise anywhere in the release copy', () => {
+    const findings = RELEASE_COPY.flatMap((file) => copyFindings(file, read(file)))
+    expect(blocking('attestation-claims/release-copy', findings, SCOPE)).toEqual([])
   })
 })
