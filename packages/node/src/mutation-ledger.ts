@@ -1093,14 +1093,23 @@ export const MUTATIONS: readonly Mutation[] = [
       'relay-discovered peers from quorum slots again, and six cases see it. The refusal payload ' +
       'in `replace` is reconstructed; the **predicate** is the one that was planted, and it is the ' +
       'predicate the cases read — each asserts `result.ok`, which inverts whatever the refusal ' +
-      'carries.',
+      'carries. **RE-SITED 2026-09-16, Phase 45/VER-12.** The line this used to name — ' +
+      '`const members = ordered.slice(0, rules.size)` — no longer exists: composition is now an ' +
+      'issuer-grouped round-robin, and `ordered` went with it. What the plant needs is not that ' +
+      'text but the point where the member set is COMPLETE, because the predicate it reinstates ' +
+      'reads `members`. Sited on a declaration still being filled — an empty-array binding, say — ' +
+      'the same plant would refuse every composition, which is an over-broad new rule rather than ' +
+      'a re-site of the retracted one.',
     file: 'packages/core/src/quorum.ts',
-    find: '  const members = ordered.slice(0, rules.size)',
+    find: '  const members = spreadAcrossIssuers(distinct, rules.size)',
     replace:
-      '  const members = ordered.slice(0, rules.size)\n' +
+      '  const members = spreadAcrossIssuers(distinct, rules.size)\n' +
       "  if (!members.some((c) => c.discoverability === 'seed')) {\n" +
       "    return refuse({ kind: 'no-candidates' }, 'no member of this quorum is a seed')\n" +
       '  }',
+    // `signature` is left exactly as it was. The title it names has not moved, and this
+    // task deliberately re-observes no signature under a real plant — plan 45-04 does
+    // that. Read the untouched string as untouched, not as drift.
     caughtBy: ['packages/core/src/quorum.test.ts'],
     signature: 'does not disqualify relay-discovered peers from the slots of a quorum',
     signatureSource: 'test-title',
@@ -1116,10 +1125,27 @@ export const MUTATIONS: readonly Mutation[] = [
       'the same defect and watched `owner-domain-agents.node.test.ts` report ' +
       '`expected \'independent\' to be \'owner-domain\'` on one arm and ' +
       '`expected \'independent\' to be \'owner-attested\'` on the other **under one plant**, which ' +
-      'is the evidence that one expression produces both labels.',
+      'is the evidence that one expression produces both labels. ' +
+      '**RE-SITED 2026-09-16, Phase 45/VER-12, and the choice of branch is the whole of the ' +
+      'entry.** `classifyAttestation` now decides in two steps: ' +
+      '`operators.size >= 2 && issuers.size >= 2` answers `independent`, and ' +
+      '`operators.size >= 2` answers `single-issuer`. The obvious new home is the first line — ' +
+      'relax its operator conjunct to `>= 1` — and that plant is INERT on every fixture that ' +
+      'catches this entry: those fixtures carry ONE issuer, so `issuers.size >= 2` is false, ' +
+      'control falls straight through, and the answer does not move. That is a mutation sited ' +
+      'downstream of a decision already taken, which is the Phase 44 shape that stayed green and ' +
+      'was reported as a blind instrument. It is therefore sited on the branch that actually ' +
+      'decides for a one-issuer fixture: relaxed to `>= 1`, a two-node ONE-operator set reports ' +
+      '`single-issuer` where it should report `owner-domain`, and the label moves.',
     file: 'packages/core/src/quorum.ts',
-    find: "  if (operators.size >= 2) return 'independent'",
-    replace: "  if (operators.size >= 1) return 'independent'",
+    find: "  if (operators.size >= 2) return 'single-issuer'",
+    replace: "  if (operators.size >= 1) return 'single-issuer'",
+    // `signature` is left exactly as it was, deliberately. It was observed against the
+    // pre-Phase-45 expression and the label this plant now produces has moved, but the
+    // cheap layer checks a `rendered-at-runtime` signature against nothing — so guessing
+    // a new string here would put an UNOBSERVED sentence in the ledger, which is worse
+    // than a stale observed one. Plan 45-04 plants this entry for real and records what
+    // it actually saw.
     caughtBy: ['packages/node/src/quorum-agents.node.test.ts'],
     signature: "expected 'independent' to be 'owner-domain'",
     signatureSource: 'rendered-at-runtime',
