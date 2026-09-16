@@ -586,13 +586,43 @@ function lossesOf(arm: Arm): readonly Expiry[] {
   return [...arm.job.expired, ...arm.job.surrendered]
 }
 
-function heldOf(arm: Arm): readonly number[] {
-  return lossesOf(arm).map((expiry) => {
+function heldMsOf(losses: readonly Expiry[]): readonly number[] {
+  return losses.map((expiry) => {
     if (expiry.heldMs === null) {
       throw new Error(`task ${expiry.taskId} lost a lease with no matching grant in the history`)
     }
     return expiry.heldMs
   })
+}
+
+/**
+ * How long each lease was held, over losses of BOTH kinds.
+ *
+ * This is the set for comparing what two SIGNALS cost, because the kinds are precisely what
+ * differ: a killed holder closes its socket and surrenders in milliseconds, a stopped one goes
+ * quiet and its lease has to run out. Excluding surrenders here would empty the killed arm and
+ * leave `Math.max(...[])` returning `-Infinity`, which is less than everything.
+ */
+function heldOf(arm: Arm): readonly number[] {
+  return heldMsOf(lossesOf(arm))
+}
+
+/**
+ * How long each lease that RAN OUT was held — expiries only.
+ *
+ * **This is the set every claim about the LEASE belongs to, and separating it cost a red run.**
+ * On 2026-09-15 the lease-floor assertion below read `expected 27 to be greater than or equal
+ * to 2000` on the killed arm: 27 ms is a surrender, and a surrender is a lease released early
+ * on an observed hard failure, so it never waited for the lease and was never going to. The
+ * assertion was correct and was being handed the wrong population — `lossesOf` had been widened
+ * to cover both kinds for the existence question ("was a lease lost at all?"), and `heldOf`
+ * inherited that widening into the duration question, where it does not hold.
+ *
+ * `heldMs` for an expiry settles at `max(lease, 2/3 x lease + probe)`; that formula is what the
+ * short-against-long comparison rests on, so that comparison reads this set too.
+ */
+function expiryHeldOf(arm: Arm): readonly number[] {
+  return heldMsOf(arm.job.expired)
 }
 
 /**
@@ -721,7 +751,11 @@ function readArm(arm: Arm, leaseMs: number): void {
     expect(shard.resultCid).not.toBeNull()
   }
 
-  for (const held of heldOf(arm)) {
+  // Expiries only. An arm with none is a killed arm, whose losses came back as surrenders —
+  // that arm's claim is carried by `lossesOf(killed).length > 0` at its own call site, and by
+  // the signal comparison at the end of this file. `readArm`'s first assertion already refuses
+  // an arm with no loss of either kind, so an empty set here can only mean surrenders.
+  for (const held of expiryHeldOf(arm)) {
     // The lease was **honoured**: a shard is never taken off a node before its lease elapses.
     expect(held).toBeGreaterThanOrEqual(leaseMs)
     // ── The knob's guard ────────────────────────────────────────────────────────────────
@@ -757,8 +791,14 @@ describe('CHURN-04 — a lease expires across real OS processes and the shard is
      * waited longer than every expiry in the short one, on the same fixture, in the same run,
      * with `--lease-ms` the only thing that differs.
      */
-    const shortHeld = heldOf(short)
-    const longHeld = heldOf(long)
+    const shortHeld = expiryHeldOf(short)
+    const longHeld = expiryHeldOf(long)
+    // **Both sets must be non-empty before a min/max reads them.** `Math.min(...[])` is
+    // `Infinity` and `Math.max(...[])` is `-Infinity`, so the comparison below passes on two
+    // empty arms without anything having been measured — a blind instrument, and this file has
+    // carried one before.
+    expect(shortHeld.length, 'the short arm recorded no EXPIRY to compare').toBeGreaterThan(0)
+    expect(longHeld.length, 'the long arm recorded no EXPIRY to compare').toBeGreaterThan(0)
     expect(Math.min(...longHeld)).toBeGreaterThan(Math.max(...shortHeld))
     // And the gap is the lease's, not a constant offset: `heldMs` settles at
     // `max(lease, ⅔ × lease + probe)`, so raising the lease by 5 000 must move it by at least
@@ -884,6 +924,9 @@ describe('CHURN-04 — a lease expires across real OS processes and the shard is
 
     // The probe, not the dispatch, is what the signal changes: every killed-arm expiry landed
     // sooner than every stopped-arm one, at the same lease.
+    // Same ±Infinity guard as the arm comparison above, for the same reason.
+    expect(heldOf(killed).length, 'the killed arm recorded no loss to time').toBeGreaterThan(0)
+    expect(heldOf(stopped).length, 'the stopped arm recorded no loss to time').toBeGreaterThan(0)
     expect(Math.max(...heldOf(killed))).toBeLessThan(Math.min(...heldOf(stopped)))
   }, PROCESS_TEST_TIMEOUT)
 })
