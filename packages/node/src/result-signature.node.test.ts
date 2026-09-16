@@ -639,7 +639,6 @@ async function strangerSigner(): Promise<ResultSigner> {
     issuance: 'remembers-only-within-this-process',
   }).enrol(
     await requestEnrollment(STRANGER_NODE_SEED, new Uint8Array(SEED_BYTES).fill(USER_SEEDS[0]), {
-      operatorId: 'stranger-ops',
       discoverability: 'via-relay',
       relayIds: [],
     }),

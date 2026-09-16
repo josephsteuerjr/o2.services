@@ -102,7 +102,6 @@ function buildFabric(options: { readonly issues: boolean }): {
 
 async function buildRequest(nodeSeed: Uint8Array, userSeed: Uint8Array = user.priv): Promise<PendingEnrollment> {
   return await requestEnrollment(nodeSeed, userSeed, {
-    operatorId: 'op-a',
     discoverability: 'via-relay',
     relayIds: ['12D3KooWRelayOne'],
   })
@@ -506,7 +505,6 @@ describe('the requester checks that the answer is about the request', () => {
 
   async function victimRequest(relayIds: readonly string[] = VICTIM_RELAYS): Promise<PendingEnrollment> {
     return await requestEnrollment(victimNode.priv, victimUser.priv, {
-      operatorId: 'victim-op',
       discoverability: 'via-relay',
       relayIds,
     })
@@ -548,7 +546,6 @@ describe('the requester checks that the answer is about the request', () => {
       network,
       providerId,
       await requestEnrollment(decoyNode.priv, victimUser.priv, {
-        operatorId: 'victim-op',
         discoverability: 'via-relay',
         relayIds: VICTIM_RELAYS,
       }),
@@ -568,7 +565,6 @@ describe('the requester checks that the answer is about the request', () => {
       network,
       providerId,
       await requestEnrollment(victimNode.priv, decoyUser.priv, {
-        operatorId: 'victim-op',
         discoverability: 'via-relay',
         relayIds: VICTIM_RELAYS,
       }),
@@ -588,7 +584,6 @@ describe('the requester checks that the answer is about the request', () => {
       network,
       providerId,
       await requestEnrollment(victimNode.priv, victimUser.priv, {
-        operatorId: 'somebody-elses-operator',
         discoverability: 'via-relay',
         relayIds: VICTIM_RELAYS,
       }),
@@ -608,7 +603,6 @@ describe('the requester checks that the answer is about the request', () => {
       network,
       providerId,
       await requestEnrollment(victimNode.priv, victimUser.priv, {
-        operatorId: 'victim-op',
         discoverability: 'via-relay',
         relayIds: [...VICTIM_RELAYS, '12D3KooWRelayThree'],
       }),
@@ -630,7 +624,6 @@ describe('the requester checks that the answer is about the request', () => {
       side,
       providerId,
       await requestEnrollment(decoyNode.priv, decoyUser.priv, {
-        operatorId: 'somebody-elses-operator',
         discoverability: 'seed',
         relayIds: [],
       }),

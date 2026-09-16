@@ -137,9 +137,9 @@ async function ownerFabric(options: { module: Uint8Array<ArrayBuffer>; ownerNode
 
   const certificates: NodeCertificate[] = []
 
-  const enrol = async (priv: Uint8Array, userPriv: Uint8Array, operatorId: string): Promise<NodeCertificate> => {
+  const enrol = async (priv: Uint8Array, userPriv: Uint8Array): Promise<NodeCertificate> => {
     const result = authority.enrol(
-      await requestEnrollment(priv, userPriv, { operatorId, discoverability: 'seed', relayIds: [] }),
+      await requestEnrollment(priv, userPriv, { discoverability: 'seed', relayIds: [] }),
       NOW,
     )
     if (!result.ok) throw new Error(`fixture enrolment failed: ${result.reason}`)
@@ -150,9 +150,12 @@ async function ownerFabric(options: { module: Uint8Array<ArrayBuffer>; ownerNode
   for (let i = 0; i < options.ownerNodes; i++) {
     const priv = new Uint8Array(32).fill(90 + i)
     const nodeId = toHex(ed25519.getPublicKey(priv))
-    // Same operator for both: one person's own machines are one operator, which is
-    // exactly why their agreement is owner-domain and not independent.
-    const certificate = await enrol(priv, aliceUserPriv, 'alice-op')
+    // Same operator for both, and since 2026-09-16 that is **structural rather than a
+    // convention this fixture keeps**: the provider derives `operatorId` from the user key
+    // (VER-11), so passing one `aliceUserPriv` is what makes these one operator. It used to
+    // be a string both calls happened to repeat. One person's own machines are one operator,
+    // which is exactly why their agreement is owner-domain and not independent.
+    const certificate = await enrol(priv, aliceUserPriv)
     const capabilities = publishCapabilities(priv, {
       features: ['bulk-memory'],
       sovereignFor: [aliceUserKey],
@@ -208,7 +211,7 @@ async function ownerFabric(options: { module: Uint8Array<ArrayBuffer>; ownerNode
   // Bob's node: provides the block, cleared for nobody.
   const bobPriv = new Uint8Array(32).fill(99)
   const foreignKey = toHex(ed25519.getPublicKey(bobPriv))
-  const bobCertificate = await enrol(bobPriv, bobUserPriv, 'bob-op')
+  const bobCertificate = await enrol(bobPriv, bobUserPriv)
   const bobRpc = new RpcEndpoint(network.connect(foreignKey), { timeoutMs: 5_000 })
   const bobStore = new MemoryBlockstore()
   await bobStore.put(await sovereignBytes())

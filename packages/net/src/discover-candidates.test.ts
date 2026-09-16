@@ -96,7 +96,6 @@ async function fabricOf(options: {
     const issuer = options.rogueIssuer?.(i) === true ? rogue : authority
     const enrolled = issuer.enrol(
       await requestEnrollment(priv, userPriv, {
-        operatorId: `op-${i}`,
         discoverability: 'seed',
         relayIds: [],
       }),

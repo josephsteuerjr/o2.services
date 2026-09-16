@@ -357,8 +357,10 @@ const { values } = parseArgs({
     // organisation several nodes belong to, and it is signed into `NodeCertificate.userKey`
     // by a provider and derived from for `CapabilityRecord.sovereignFor`. Minting one to
     // cover a typo'd path would enrol this node under a user nobody controls and report
-    // success — a placeholder written into a signed statement, which is the same hole
-    // `--operator-id` has no default for.
+    // success — a placeholder written into a signed statement. Since VER-11 this file is
+    // also what settles `NodeCertificate.operatorId`: the provider derives that field from
+    // the public half of this key, so a typo'd path now misstates two fields of the
+    // certificate rather than one.
     //
     // **A path is not a secret, but the file it names is.** Only the bytes are sensitive
     // and they never reach argv.
@@ -370,13 +372,13 @@ const { values } = parseArgs({
     // than typed separately into `--owner-id`. One value, three readers, no way for them
     // to disagree. See `--owner-id` above for the collision that made this necessary.
     'user-key': { type: 'string' },
-    // AUTH-01: who runs this hardware. Required whenever `--provider-addr` is given and
-    // deliberately without a default, because it is signed into the certificate as
-    // `NodeCertificate.operatorId` and is the unit of quorum diversity: a silent default
-    // would make every node one operator, or every node its own, and Phase 19 would
-    // inherit an anti-affinity rule that means nothing. Nothing verifies that the operator
-    // id is *true*; what is enforced is that somebody *stated* it.
-    'operator-id': { type: 'string' },
+    // `--operator-id` WAS HERE, and is gone — VER-11, 2026-09-16. Its comment ended
+    // *"Nothing verifies that the operator id is true; what is enforced is that somebody
+    // stated it"*, which was accurate and was the defect: the field `composeQuorum` uses to
+    // decide whether two results came from two parties was chosen by the party being
+    // characterised. A provider now derives it from the user key it has a proof for, so
+    // there is nothing here for an operator to state and therefore nothing to state
+    // wrongly. `--user-key` is the one remaining half of this pair.
     // AUTH-02: issuer keys this node pins, repeatable. A peer whose certificate chains to
     // one of these is verified and may be asked for a block; every other connected peer is
     // excluded by name, with a verdict this node can state.
@@ -800,7 +802,7 @@ const { values } = parseArgs({
 })
 
 const USAGE =
-  'usage: agent.ts --dir <blockstore-dir> [--identity-passphrase-file <path>] [--port <n>] [--owner-id <id — the enrolled user key when --user-key is given> [--owner-key <hex>] [--can-execute-sovereign]] [--trust-anchor <hex> ...] [--issues-certificates --max-issued-per-window <n>] [--provider-addr <multiaddr> --user-key <path> --operator-id <id>] [--trusted-issuer <hex> ...] [--admit-issuer <hex> ...] [--peer-addr <multiaddr> ...] [--max-concurrent-tasks <n>] [--inbound-threshold <n>] [--duty-cycle <n>] [--relay-addr <multiaddr> ...] [--coordinate <shards> [--coordinate-n <n>] [--lease-ms <ms>] [--job-store <dir>] [--resume-from <cid> ...]] [--sovereign-owner <seed-path> --sovereign-row <row-path> ... (paired, at least twice)]\n'
+  'usage: agent.ts --dir <blockstore-dir> [--identity-passphrase-file <path>] [--port <n>] [--owner-id <id — the enrolled user key when --user-key is given> [--owner-key <hex>] [--can-execute-sovereign]] [--trust-anchor <hex> ...] [--issues-certificates --max-issued-per-window <n>] [--provider-addr <multiaddr> --user-key <path>] [--trusted-issuer <hex> ...] [--admit-issuer <hex> ...] [--peer-addr <multiaddr> ...] [--max-concurrent-tasks <n>] [--inbound-threshold <n>] [--duty-cycle <n>] [--relay-addr <multiaddr> ...] [--coordinate <shards> [--coordinate-n <n>] [--lease-ms <ms>] [--job-store <dir>] [--resume-from <cid> ...]] [--sovereign-owner <seed-path> --sovereign-row <row-path> ... (paired, at least twice)]\n'
 
 /**
  * The one exit-2 path, extended rather than duplicated.
@@ -840,14 +842,16 @@ if (values['identity-passphrase-file'] !== undefined && process.env['O2_IDENTITY
   )
 }
 
-// Exit 2 rather than a default, and the reason is the same one `--operator-id`'s own
-// comment gives: both of these become fields of a statement a provider signs. A default
-// for either would write a placeholder into that statement, and `operatorId` is the unit
-// of quorum diversity — a silent default would make every node one operator, or every node
-// its own. Refusing to start is the only honest answer to a half-configured enrollment.
+// Exit 2 rather than a default: `--user-key` becomes a field of a statement a provider
+// signs, and a default would write a placeholder into it. Refusing to start is the only
+// honest answer to a half-configured enrollment.
+//
+// **One check where there were two** — the `--operator-id` half went with the flag. It is
+// not that the operator identity stopped mattering; it is that this process no longer has
+// an opinion about it. The value is derived from the key `--user-key` names, so supplying
+// that one file now settles both fields, and the two can no longer disagree.
 if (values['provider-addr'] !== undefined) {
   if (values['user-key'] === undefined) refuse('--provider-addr requires --user-key <path>')
-  if (values['operator-id'] === undefined) refuse('--provider-addr requires --operator-id <id>')
 }
 
 // AUTH-04: the two halves of a provider's configuration travel together or the process
@@ -1173,7 +1177,6 @@ const enrollment =
     ? undefined
     : {
         userPrivateKey: await readUserSeed(values['user-key'] as string),
-        operatorId: values['operator-id'] as string,
         providerAddr: values['provider-addr'],
       }
 

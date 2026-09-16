@@ -1368,7 +1368,14 @@ async function realFabric(
                   // `ownerOfWorker` returns the first owner unconditionally unless SOVEREIGN,
                   // so the `--discover`-only rig enrols exactly as it always did.
                   userPrivateKey: ownerOfWorker(i).seed,
-                  operatorId: `bench-worker-${i}`,
+                  // `operatorId: \`bench-worker-${i}\`` WAS HERE — VER-11, 2026-09-16.
+                  // It asked for N distinct operator names while `ownerOfWorker` hands
+                  // every worker the SAME `BENCH_USER_SEED` unless `--sovereign` is
+                  // passed, so the attestation rung — which is `--discover`, not
+                  // `--sovereign` — was reporting `independent` over two processes
+                  // belonging to one user. The provider now derives the field from that
+                  // shared key, and the rung reports `owner-domain`, which is what those
+                  // two workers have always been. See `bench-attestation.node.test.ts`.
                   providerAddr,
                 },
               }),

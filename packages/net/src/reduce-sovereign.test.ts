@@ -91,13 +91,12 @@ const authority = new EnrollmentAuthority({
  * descriptor's `ownerId` from — so this helper produces the two facts the arm compares
  * from one act, exactly as a real enrolment does.
  */
-async function ownerNode(userByte: number, nodeByte: number, operatorId: string): Promise<{
+async function ownerNode(userByte: number, nodeByte: number): Promise<{
   readonly ownerId: OwnerId
   readonly certificate: NodeCertificate
 }> {
   const enrolled = authority.enrol(
     await requestEnrollment(new Uint8Array(32).fill(nodeByte), new Uint8Array(32).fill(userByte), {
-      operatorId,
       discoverability: 'seed',
       relayIds: [],
     }),
@@ -109,10 +108,10 @@ async function ownerNode(userByte: number, nodeByte: number, operatorId: string)
   return { ownerId: enrolled.certificate.userKey, certificate: enrolled.certificate }
 }
 
-const ALICE = await ownerNode(0xd1, 0xd2, 'alice-op')
-const BOB = await ownerNode(0xd3, 0xd4, 'bob-op')
+const ALICE = await ownerNode(0xd1, 0xd2)
+const BOB = await ownerNode(0xd3, 0xd4)
 /** A third party who owns nothing in these jobs. Used to make a foreign attestation. */
-const MALLORY = await ownerNode(0xd5, 0xd6, 'mallory-op')
+const MALLORY = await ownerNode(0xd5, 0xd6)
 
 /** The map half's receipt, derived from certificates rather than written down. */
 function receiptOver(certificates: readonly NodeCertificate[]): AttestationReceipt {

@@ -613,7 +613,6 @@ describe('AUTH-04 — criterion 3, the burst through the production request path
               client.rpc,
               provider.peerId,
               await requestEnrollment(new Uint8Array(SEED_BYTES).fill(start + k + 1), BURST_USER_SEED, {
-                operatorId: 'burst-ops',
                 discoverability: 'seed',
                 relayIds: [],
               }),
@@ -719,7 +718,7 @@ describe('AUTH-04 — criterion 3, the burst through the production request path
               await requestEnrollment(
                 new Uint8Array(SEED_BYTES).fill(start + k + 1),
                 new Uint8Array(SEED_BYTES).fill(start + k + 101),
-                { operatorId: 'cost-ops', discoverability: 'seed', relayIds: [] },
+                { discoverability: 'seed', relayIds: [] },
               ),
             ),
           ),
@@ -758,7 +757,6 @@ describe('AUTH-04 — criterion 3, the burst through the production request path
 
     const requestFor = (nodeSeedByte: number): ReturnType<typeof requestEnrollment> =>
       requestEnrollment(new Uint8Array(SEED_BYTES).fill(nodeSeedByte), BURST_USER_SEED, {
-        operatorId: 'scope-ops',
         discoverability: 'seed',
         relayIds: [],
       })

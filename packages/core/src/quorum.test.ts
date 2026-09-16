@@ -26,7 +26,11 @@ function cert(
   nodeKey: string,
   operatorId: string,
   relayIds: readonly string[],
-  overrides: { readonly userKey?: string; readonly discoverability?: Discoverability } = {},
+  overrides: {
+    readonly userKey?: string
+    readonly discoverability?: Discoverability
+    readonly issuer?: string
+  } = {},
 ): NodeCertificate {
   return {
     nodeKey,
@@ -36,7 +40,10 @@ function cert(
     relayIds,
     issuedAt: 0,
     expiresAt: Number.MAX_SAFE_INTEGER,
-    issuer: 'provider',
+    // Overridable since VER-11, and the default stays `'provider'` because that is what
+    // every case here has always had: one issuer, which is the fabric's real deployment and
+    // therefore the honest default. Only the receipt cases name a second one.
+    issuer: overrides.issuer ?? 'provider',
     signature: 'sig',
   }
 }
@@ -361,6 +368,34 @@ describe('VER-10 / criterion 7 — a weaker claim cannot be read as a stronger o
     // exactly why the label has to travel with the result.
     expect(independent.replicas).toBe(ownerDomain.replicas)
     expect(attestationRank(independent.strength)).toBeGreaterThan(attestationRank(ownerDomain.strength))
+  })
+
+  it('names the providers that vouched for the members, which is one on this fabric', () => {
+    // VER-11. The receipt reports the issuer dimension; nothing refuses on it yet, and that
+    // separation is the point — see `AttestationReceipt.issuers`.
+    const oneProvider = attestationReceipt([
+      cert('n1', 'alice-op', []),
+      cert('n2', 'bob-op', ['relay-1']),
+    ])
+    // **Two operators and ONE issuer, and the receipt now says both.** Before this field the
+    // strength alone was the whole story, and `'independent'` on this set is true about
+    // operators and says nothing about how many parties an attacker would have to reach.
+    expect(oneProvider.operators).toHaveLength(2)
+    expect(oneProvider.issuers).toEqual(['provider'])
+    expect(oneProvider.strength).toBe('independent')
+
+    const twoProviders = attestationReceipt([
+      cert('n1', 'alice-op', []),
+      cert('n2', 'bob-op', ['relay-1'], { issuer: 'other-provider' }),
+    ])
+    // Sorted and de-duplicated, as `operators` and `userKeys` are, so a receipt reads the
+    // same whatever order the replicas answered in.
+    expect(twoProviders.issuers).toEqual(['other-provider', 'provider'])
+
+    // The strength is UNCHANGED across the pair, which is what makes this field worth
+    // carrying rather than inferring: the two sets are indistinguishable by strength and
+    // differ in exactly the dimension Phase 45 will act on.
+    expect(twoProviders.strength).toBe(oneProvider.strength)
   })
 
   it('does not upgrade a single-node result however it is dressed up', () => {

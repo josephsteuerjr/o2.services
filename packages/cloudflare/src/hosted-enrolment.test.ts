@@ -69,7 +69,6 @@ async function requestFrom(
   nodeSeed: Uint8Array = NODE_SEED,
 ): Promise<PendingEnrollment> {
   return await requestEnrollment(nodeSeed, userSeed, {
-    operatorId: 'phase-39-hosted-enrolment',
     discoverability: 'via-relay',
     relayIds: [],
   })

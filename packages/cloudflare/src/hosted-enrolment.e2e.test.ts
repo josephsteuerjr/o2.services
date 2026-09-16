@@ -117,7 +117,6 @@ async function enrol(
   rpc: RpcEndpoint,
 ): Promise<{ ok: boolean; certificate?: NodeCertificate; reason: string }> {
   const pending = await requestEnrollment(NODE_SEED, userSeed, {
-    operatorId: 'phase-39-enrolment-join',
     discoverability: 'via-relay',
     relayIds: [],
   })

@@ -128,7 +128,6 @@ describe('AUTH-01 — a node obtains its certificate before start() returns', ()
       blockstoreDir: join(workdir, 'applicant'),
       enrollment: {
         userPrivateKey: USER_SEED,
-        operatorId: 'harbour-ops',
         providerAddr: addrOf(provider),
       },
     })
@@ -170,7 +169,6 @@ describe('AUTH-01 — a node obtains its certificate before start() returns', ()
       blockstoreDir: join(workdir, 'direct'),
       enrollment: {
         userPrivateKey: USER_SEED,
-        operatorId: 'harbour-ops',
         providerAddr: addrOf(provider),
       },
     })
@@ -197,7 +195,6 @@ describe('AUTH-01 — a node obtains its certificate before start() returns', ()
       relayAddrs: [addrOf(provider)],
       enrollment: {
         userPrivateKey: USER_SEED,
-        operatorId: 'harbour-ops',
         providerAddr: addrOf(provider),
       },
     })
@@ -213,7 +210,6 @@ describe('AUTH-01 — a node obtains its certificate before start() returns', ()
       blockstoreDir: dir,
       enrollment: {
         userPrivateKey: USER_SEED,
-        operatorId: 'harbour-ops',
         providerAddr: addrOf(provider),
       },
     })
@@ -256,7 +252,6 @@ describe('AUTH-01 — a node told to enrol that cannot enrol does not start', ()
         rpcTimeoutMs: 10_000,
         enrollment: {
           userPrivateKey: USER_SEED,
-          operatorId: 'harbour-ops',
           providerAddr: addrOf(notAProvider),
         },
       }),
@@ -297,7 +292,6 @@ describe('AUTH-01 — a node told to enrol that cannot enrol does not start', ()
       rpcTimeoutMs: 10_000,
       enrollment: {
         userPrivateKey: USER_SEED,
-        operatorId: 'harbour-ops',
         providerAddr: nowhere,
       },
     }).then(
@@ -341,7 +335,7 @@ describe('AUTH-01 — a persisted, unexpired certificate is reused on restart', 
 
     const first = await start({
       blockstoreDir: dir,
-      enrollment: { userPrivateKey: USER_SEED, operatorId: 'harbour-ops', providerAddr },
+      enrollment: { userPrivateKey: USER_SEED, providerAddr },
     })
     const issued = first.certificate
     // `not.toBeNull()` alone would pass against `undefined`, which is what an unbuilt
@@ -354,7 +348,7 @@ describe('AUTH-01 — a persisted, unexpired certificate is reused on restart', 
 
     const restarted = await start({
       blockstoreDir: dir,
-      enrollment: { userPrivateKey: USER_SEED, operatorId: 'harbour-ops', providerAddr },
+      enrollment: { userPrivateKey: USER_SEED, providerAddr },
     })
     expect(restarted.certificate).toStrictEqual(issued)
     expect(restarted.certificate?.issuedAt).toBe(issued?.issuedAt)
@@ -372,7 +366,7 @@ describe('AUTH-01 — a persisted, unexpired certificate is reused on restart', 
 
     const first = await start({
       blockstoreDir: dir,
-      enrollment: { userPrivateKey: USER_SEED, operatorId: 'harbour-ops', providerAddr },
+      enrollment: { userPrivateKey: USER_SEED, providerAddr },
     })
     await stop(first)
 
@@ -384,7 +378,7 @@ describe('AUTH-01 — a persisted, unexpired certificate is reused on restart', 
 
     const restarted = await start({
       blockstoreDir: dir,
-      enrollment: { userPrivateKey: USER_SEED, operatorId: 'harbour-ops', providerAddr },
+      enrollment: { userPrivateKey: USER_SEED, providerAddr },
     })
     expect(restarted.certificate?.issuedAt).toBeGreaterThan(planted.issuedAt)
     expect(restarted.certificate?.expiresAt).toBeGreaterThan(Date.now())
@@ -405,7 +399,7 @@ describe('AUTH-01 — a persisted, unexpired certificate is reused on restart', 
     const donorDir = join(workdir, 'donor')
     const donor = await start({
       blockstoreDir: donorDir,
-      enrollment: { userPrivateKey: USER_SEED, operatorId: 'harbour-ops', providerAddr },
+      enrollment: { userPrivateKey: USER_SEED, providerAddr },
     })
     const donorKey = donor.nodeKey
     await stop(donor)
@@ -420,7 +414,7 @@ describe('AUTH-01 — a persisted, unexpired certificate is reused on restart', 
 
     const node = await start({
       blockstoreDir: dir,
-      enrollment: { userPrivateKey: OTHER_USER_SEED, operatorId: 'harbour-ops', providerAddr },
+      enrollment: { userPrivateKey: OTHER_USER_SEED, providerAddr },
     })
     expect(node.certificate?.nodeKey).toBe(ownKey)
     expect(node.certificate?.nodeKey).not.toBe(donorKey)

@@ -677,7 +677,6 @@ async function combineFabric(workers: readonly FixtureWorker[]) {
     // and every reading below the named absence for a reason unrelated to attestation.
     const enrolled = authority.enrol(
       await requestEnrollment(nodeSeed, FIXTURE_USER_SEED, {
-        operatorId: worker.operatorId,
         discoverability: 'seed',
         relayIds: [],
       }),
