@@ -18,11 +18,29 @@ import { describeAttestation } from '@o2/core'
  * |---|---|---|
  * | every memory rung | the **named absence** | `memoryFabric` builds descriptors with `publicNodes`, which carries no certificate, and nothing enrolled its endpoints |
  * | real transport, 1 node | **`owner-attested`** | `redundancy: Math.min(2, nodes)` is 1 there, so one certificated replica ran and nothing verified it |
- * | real transport, 2 nodes | **`independent`** | two workers enrol under `operatorId: bench-worker-${i}`, so two *separate operators* agreed |
+ * | real transport, 2 nodes | **`owner-domain`** | two workers of the same user key agreed — replicated across one person's machines, independent of hardware failure and not of the owner |
+ *
+ * > **THE SECOND ROW READ `independent` UNTIL 2026-09-16 AND THE REASON IT GAVE WAS FALSE.
+ * > Qualified rather than deleted, VER-11, Phase 44.** It said: *"two workers enrol under
+ * > `operatorId: bench-worker-${i}`, so two separate operators agreed."* The first clause was
+ * > true and the inference was not. `ownerOfWorker` (`bin/bench.ts`) returns the **same**
+ * > `BENCH_USER_SEED` for every worker unless `--sovereign` is passed, and this rung is
+ * > `--discover`. So the two workers were two processes of one user, differing in a string the
+ * > provider copied without checking — and this file, which exists to stop a driver printing a
+ * > label nothing in it supports, was reading one.
+ * >
+ * > A provider now derives `operatorId` from the user key, and the rung reports what those two
+ * > processes are. **The rig was not changed to restore the old word, and that was a decision
+ * > rather than an omission**: a test fixture may supply as many owners as the rule under test
+ * > needs, because the number of operators is the thing it is checking; this driver publishes a
+ * > reading of a real rig, so its labels have to describe the rig — and the rig is one person's
+ * > processes on one machine. `independent` over N volunteers is the multi-machine demo's to
+ * > show, not this one's.
  *
  * **The pair is the point.** `owner-attested` on its own passes against a driver that
- * prints one constant, and so does `independent`; the two together are what make this a
- * distinction rather than a default. And the absence is the third, because *"we cannot
+ * prints one constant, and so does `owner-domain`; the two together are what make this a
+ * distinction rather than a default. The pair survived the change unweakened — two different
+ * strings off one surface is what it has always asserted. And the absence is the third, because *"we cannot
  * say"* and *"one node said so"* are different statements — keeping them different is the
  * whole of VER-10, and a memory rung reporting `owner-attested` is the failure that would
  * look most like success to a reader.
@@ -508,13 +526,18 @@ describe('the driver says how strongly each rung was attested', () => {
     expect(rung('real', 1).population, attemptLog.join('\n')).toBe(COMPLETED_RUN)
   }, SPAWN_TIMEOUT_MS)
 
-  it('reads independent off the two-operator rung, which is what makes it a distinction', async () => {
+  it('reads owner-domain off the two-worker rung, which is what makes it a distinction', async () => {
     await readings()
     const two = strengthOf('real', 2)
-    expect(two.strength).toBe('independent')
+    // `independent` / `operators: 2` until 2026-09-16 — see this file's header for why that was
+    // a label nothing about the rig supported. **Two replicas, and the job still completed**: the quorum
+    // refuses and the shard degrades rather than failing, which is `runs-at-available-redundancy`
+    // working. A rung that reported `owner-domain` at ONE replica would be a different defect
+    // and is why the count is asserted beside the word.
+    expect(two.strength).toBe('owner-domain')
     expect(two.replicas).toBe(2)
-    expect(two.operators).toBe(2)
-    expect(two.description).toBe(describeAttestation('independent'))
+    expect(two.operators).toBe(1)
+    expect(two.description).toBe(describeAttestation('owner-domain'))
     expect(rung('real', 2).population, attemptLog.join('\n')).toBe(COMPLETED_RUN)
 
     // Asserted as a pair and deliberately here rather than in a fourth case: either
@@ -540,14 +563,29 @@ describe('the driver says how strongly each rung was attested', () => {
    * `ShardAttestation` reports who **answered and signed**"*, and reading a strength off the
    * gate *"would be the exact conflation this phase exists to end"*.
    *
-   * **What this case does NOT establish**, said plainly because the gap is narrow and easy
-   * to overstate: this rig gives every worker a distinct `operatorId`, so the gate's refusal
-   * arm — `insufficient-operators`, the arm that fires when one operator would supply the
-   * whole quorum — is never reached here. That arm is carried by `quorum-agents.node.test.ts`
-   * against a fabric built for it. What is established is that the gate **ran, composed, and
-   * named the operators it composed over** on a real entry point, which is what was missing.
+   * **WHICH ARM THIS CASE READS CHANGED ON 2026-09-16, VER-11, and the paragraph it replaces is
+   * kept because it was true and because what replaced it is the stronger reading.** It said:
+   *
+   * > this rig gives every worker a distinct `operatorId`, so the gate's refusal arm —
+   * > `insufficient-operators`, the arm that fires when one operator would supply the whole
+   * > quorum — is never reached here. That arm is carried by `quorum-agents.node.test.ts`
+   * > against a fabric built for it. What is established is that the gate **ran, composed, and
+   * > named the operators it composed over** on a real entry point.
+   *
+   * The rig gave every worker a distinct `operatorId` **string**; it gave them all one user
+   * key. A provider now derives the field, so this rung IS one operator and the gate reaches
+   * exactly the arm the paragraph says it never could. **The composed arm's reading on this
+   * driver is therefore gone, and that is recorded rather than restored**: `quorum-ui.e2e.test.ts`
+   * carries it — two independently-run relays, four distinct owners, on the surface a visitor
+   * reads — and it is the evidence `VER-04`'s own ledger row cites as closing.
+   *
+   * **What is gained is not a consolation.** `insufficient-operators` had no reader on this
+   * driver at all, and this file's own history says what that cost: `bin/bench.ts` rendered
+   * the refusal arm as `not composed (${quorum.refusal})` — interpolating the object — so
+   * every refusal it ever printed said `[object Object]`, and nothing caught it because no
+   * assertion here read that arm. It reads it now.
    */
-  it('VER-04 — reads the composed quorum, which the strength beside it cannot evidence', async () => {
+  it('VER-04 — reads the quorum gate refusing this rig, which the strength beside it cannot evidence', async () => {
     await readings()
 
     const composed = quorums.get('real/2')
@@ -556,22 +594,22 @@ describe('the driver says how strongly each rung was attested', () => {
       `no quorum line for real/2. Lines seen: ${JSON.stringify([...quorums])}\n${attemptLog.join('\n')}`,
     ).toBeDefined()
 
-    // The gate ran and composed. Asserted before the operator names so a driver that
-    // printed a refusal fails here, naming the arm, rather than at a `toContain` that
-    // reads like a missing worker.
-    // `describeQuorum`'s wording since 2026-08-14 — was `composed over 2 operator(s)` while
-    // this driver formatted the union itself. It formats nothing now: the CLI and the demo
-    // page both render the kernel's sentence, which is what stopped the refusal arm printing
-    // `not composed ([object Object])` on a line no assertion in this file ever read.
-    expect(composed).toContain('composed across 2 operators')
-    expect(composed).not.toContain('not composed')
+    // The gate RAN and reached a verdict about this rig — `not attempted` is the arm that means
+    // it never ran, and is what the one-node rung reads. Asserted before the sentence so a
+    // driver that skipped the gate fails here, naming that, rather than at a `toContain`.
     expect(composed).not.toContain('not attempted')
 
-    // **The identities, which are what make the claim checkable.** A count would be the
-    // same fact `operators 2` already carries one line up; the names are what could show
-    // one operator supplying both members if it ever happened. Derived from the rig's own
-    // construction — `operatorId: \`bench-worker-${i}\`` — rather than transcribed.
-    for (const i of [0, 1]) expect(composed).toContain(`bench-worker-${String(i)}`)
+    // **The refusal in the kernel's own words, verbatim.** Measured off a real run, written as
+    // a literal: a fixture that rebuilt this sentence from `describeQuorum` would move with any
+    // rewording and could never fail. `[object Object]` is what this line said for weeks while
+    // nothing read it.
+    expect(composed).toContain('not composed [insufficient-operators]')
+    expect(composed).toContain('quorum of 2 needs 2 distinct operators, found 1')
+
+    // **And the job completed anyway**, which is the half a refusal alone does not show: the
+    // default dial degrades rather than failing, so the rung still reports two replicas at a
+    // weaker strength. The case above asserts that pair; named here so a reader of this one
+    // does not conclude the refusal cost the run.
 
     // And the rung that cannot compose says so, with a reason rather than by silence.
     // `redundancy: Math.min(2, nodes)` is 1 at one node, so there is nothing to verify —

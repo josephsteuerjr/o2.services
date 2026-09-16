@@ -144,7 +144,7 @@ import { join } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { ed25519 } from '@noble/curves/ed25519.js'
-import { canonicalCid, delegate, describeCoverage, signName, submitJob, toHex } from '@o2/core'
+import { canonicalCid, delegate, describeCoverage, operatorIdFor, signName, submitJob, toHex } from '@o2/core'
 import type {
   Admission,
   AdmissionControl,
@@ -213,12 +213,17 @@ const OWNER_PRIVATE: ReadonlyMap<PublicKeyHex, Uint8Array> = new Map([
   [SPAR, SPAR_PRIVATE],
 ])
 
-/** One operator per owner: three separate people, which is what a cross-owner job is. */
-const OPERATOR: ReadonlyMap<PublicKeyHex, string> = new Map([
-  [KEEL, 'keel-ops'],
-  [MAST, 'mast-ops'],
-  [SPAR, 'spar-ops'],
-])
+/**
+ * One operator per owner: three separate people, which is what a cross-owner job is.
+ *
+ * **Derived rather than named since VER-11, 2026-09-16.** It read `'keel-ops'`, `'mast-ops'`,
+ * `'spar-ops'` — three strings this fixture chose, which a provider would have signed whatever
+ * owners they were paired with. Three separate people are now three separate user keys and
+ * nothing else, which is what the sentence above always meant.
+ */
+const OPERATOR: ReadonlyMap<PublicKeyHex, string> = new Map(
+  [KEEL, MAST, SPAR].map((owner) => [owner, operatorIdFor(owner)]),
+)
 
 /**
  * One row per shard, distinctive enough that a match anywhere means something.

@@ -305,6 +305,17 @@ async function writeUserKey(name: string, fill: number): Promise<string> {
 /** The one value every job below shards over, and the block discovery goes looking for. */
 const SHARD_VALUE: CanonicalValue = { shard: 'quorum-agents' }
 
+/**
+ * What a provider will sign for an agent whose `--user-key` file holds `fill` repeated.
+ *
+ * At module scope rather than inside {@link standUp}, because the readings below take it too:
+ * a fixture that wrote the seed and a provider that received its public half must arrive at
+ * one string, and every assertion about operators in this file is that comparison.
+ */
+function expectedOperator(fill: number): string {
+  return operatorIdFor(toHex(ed25519.getPublicKey(new Uint8Array(SEED_BYTES).fill(fill))))
+}
+
 interface Fixture {
   readonly provider: Agent
   readonly executors: readonly [Agent, Agent, Agent]
@@ -367,8 +378,6 @@ async function standUp(userKeyFills: readonly [number, number, number]): Promise
   // Since VER-11 that sentence is load-bearing rather than descriptive: the expected value is
   // computed from the SEED this fixture wrote, and the provider computed its own from the
   // public half it was sent, so the two agree only if the provider really did derive it.
-  const expectedOperator = (fill: number): string =>
-    operatorIdFor(toHex(ed25519.getPublicKey(new Uint8Array(SEED_BYTES).fill(fill))))
   for (const [agent, operatorId] of [
     [x, expectedOperator(userKeyFills[0])],
     [y, expectedOperator(userKeyFills[1])],
@@ -547,16 +556,28 @@ describe('criterion 1 — three operators, a quorum whose independence is read o
     // ---- The operators are the provider's, not the fixture's. ----------------------
     // Taken from the receipt — which `receiptFor` built out of certificates whose
     // holders' signatures over THIS task and THIS output verified — and compared against
-    // the `--operator-id` strings the two winning PROCESSES were spawned with. A fixture
-    // field could not fail this comparison; a signed statement can.
+    // what a provider WOULD derive from the `--user-key` file each winning PROCESS was
+    // spawned with. A fixture field could not fail this comparison; a signed statement can.
+    //
+    // **It compared against the `--operator-id` strings until VER-11, 2026-09-16**, and the
+    // comparison got stronger when the flag went: a string this fixture chose and handed over
+    // could only ever check that the provider echoed it, whereas a value derived from a key
+    // checks that the provider did the derivation.
     const attestation = shard.attestation
     if ('kind' in attestation) {
       throw new Error(`expected a receipt, got the named absence: ${attestation.reason}`)
     }
+    const seedOf: ReadonlyMap<string, number> = new Map([
+      ['x', 0xb7],
+      ['y', 0xb8],
+      ['z', 0xb9],
+    ])
     const spawnedOperatorOf = (nodeId: string): string => {
       const agent = executors.find((a) => a.peerId === nodeId)
       if (agent === undefined) throw new Error(`${nodeId} is not one of the spawned agents`)
-      return `${agent.name}-ops`
+      const fill = seedOf.get(agent.name)
+      if (fill === undefined) throw new Error(`${agent.name} has no user-key seed in this fixture`)
+      return expectedOperator(fill)
     }
     expect([...attestation.operators].sort()).toStrictEqual(agreed.map(spawnedOperatorOf).sort())
     expect(new Set(attestation.operators).size).toBe(2)
@@ -638,7 +659,7 @@ describe('criterion 1 engineered — one operator: degraded by default, refused 
     const operators = new Set(
       found.nodes.map((node) => certificateOf(found.nodes, node.nodeId).operatorId),
     )
-    expect([...operators]).toStrictEqual(['one-ops'])
+    expect([...operators]).toStrictEqual([expectedOperator(0xb7)])
 
     // One object, one varying field. See this describe's doc.
     const submitOver = async (
@@ -703,7 +724,7 @@ describe('criterion 1 engineered — one operator: degraded by default, refused 
     expect(degradedAttestation.strength).not.toBe('independent')
     expect(degradedAttestation.description).toBe(describeAttestation('owner-domain'))
     expect(degradedAttestation.replicas).toBe(2)
-    expect([...degradedAttestation.operators]).toStrictEqual(['one-ops'])
+    expect([...degradedAttestation.operators]).toStrictEqual([expectedOperator(0xb7)])
 
     // ---- A-refuse: the strict arm, over the SAME live agents. ----------------------
     const refuseRun = await submitOver(2, 'refuses-the-shard')
