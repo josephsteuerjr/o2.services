@@ -5,6 +5,7 @@ import {
   MemoryBlockstore,
   MemoryNetwork,
   WasmExecutor,
+  operatorIdFor,
   possessionChallenge,
   requestEnrollment,
   toHex,
@@ -577,23 +578,41 @@ describe('the requester checks that the answer is about the request', () => {
     })
   })
 
-  it('refuses a rewritten operatorId — the field quorum anti-affinity rests on', async () => {
+  /**
+   * **A provider can no longer hand back a different `operatorId` on its own — VER-11.**
+   *
+   * This case used to enrol a decoy naming a different operator string and substitute that
+   * genuinely-signed certificate, reading `field: 'operatorId'`. That is unbuildable now: the
+   * provider derives the field from `userKey` and refuses a request that disagrees, so the
+   * only signed certificate carrying a different operator identity is one carrying a
+   * different **user key** — and `ratify` checks `userKey` first. The substitution below is
+   * exactly what the old one was, and it is caught one field earlier.
+   *
+   * **`ratify`'s `operatorId` arm is kept and is now unreachable from a signed certificate**,
+   * which is stated rather than implied because this repository counts an unfalsifiable
+   * assertion as a defect. What still reaches it: a forged certificate — and that is refused
+   * by `verifyCertificate` before ratification, which `'confirms a substituted certificate is
+   * one verifyCertificate accepts'` below is the reading for. The arm costs one comparison
+   * and is defence against a future in which the two fields can diverge again; no case here
+   * carries it, and none can.
+   */
+  it('cannot be handed a different operatorId without a different user key, and says userKey', async () => {
     const { network, providerId } = buildFabric({ issues: true })
     const rpc = victimEndpoint(network)
     rpc.substitute = await realCertificateValueFor(
       network,
       providerId,
-      await requestEnrollment(victimNode.priv, victimUser.priv, {
+      await requestEnrollment(victimNode.priv, decoyUser.priv, {
         discoverability: 'via-relay',
         relayIds: VICTIM_RELAYS,
       }),
     )
 
-    expect(await enrolOverRpc(rpc, providerId, await victimRequest())).toMatchObject({
-      ok: false,
-      kind: 'unratified',
-      field: 'operatorId',
-    })
+    const outcome = await enrolOverRpc(rpc, providerId, await victimRequest())
+    expect(outcome).toMatchObject({ ok: false, kind: 'unratified', field: 'userKey' })
+    // The two DO differ in operator identity as well — that is what makes this the same
+    // substitution the case was written for, arriving at a different gate.
+    expect(operatorIdFor(decoyUser.pub)).not.toBe(operatorIdFor(victimUser.pub))
   })
 
   it('refuses an added relay id', async () => {

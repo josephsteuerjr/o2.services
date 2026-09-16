@@ -121,7 +121,31 @@
  * attributable, integrity rests on N-version comparison rather than on trusting an
  * identity, `composeQuorum` enforces anti-affinity by `operatorId` so N sybils under one
  * operator take exactly one quorum slot, and sovereign data never leaves its owner's
- * node. Revocation is **non-renewal on the certificate's own clock**, not a list and not
+ * node.
+ *
+ * > **THE `operatorId` CLAUSE ABOVE WAS TRUE AND ANSWERED A NARROWER ATTACK THAN IT READS.
+ * > Qualified 2026-09-16, VER-11; the sentence is kept because it was never false.**
+ * >
+ * > *N sybils under one operator take exactly one quorum slot* — correct, and about N
+ * > identities under **one** name. It says nothing about N identities under **N** names,
+ * > which cost one extra string and were checked nowhere: the provider copied `operatorId`
+ * > straight out of the request. A reader who reached this line and stopped concluded the
+ * > fabric was protected against bulk identity minting, and it was not. That is why this
+ * > qualification exists at all — the clause was ending a search.
+ * >
+ * > **What changed, and what did not.** The provider now derives `operatorId` from `userKey`
+ * > ({@link operatorIdFor}), so the extra string is gone and one user key is one operator
+ * > whatever a request asks for. **This buys an attacker nothing** — the paragraph four
+ * > sections above already measured why: a fresh user key is one `ed25519.keygen()`, and
+ * > Phase 17 read twenty of them all succeeding. What it buys is that the field now means
+ * > what this module says it means.
+ * >
+ * > **The bound an attacker actually meets is the number of PROVIDERS they must reach**, not
+ * > the number of names they can invent. `AttestationReceipt.issuers` reports that dimension
+ * > as of this change; nothing refuses on it yet, because requiring distinct issuers makes
+ * > `'independent'` unreachable while one provider is running, and how many providers this
+ * > fabric has is an owner's decision. See `docs/architecture/RFC-0003-RESPONSE-05` §6 and
+ * > `.planning/ROADMAP.md` Phase 45. Revocation is **non-renewal on the certificate's own clock**, not a list and not
  * a shorter clock; `certificateLifetimeMs` keeps its default.
  *
  * > **SUPERSEDED 2026-08-23 — the last clause only, by owner ruling.** The default is now

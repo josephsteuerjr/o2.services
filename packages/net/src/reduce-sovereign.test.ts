@@ -5,6 +5,7 @@ import {
   WasmExecutor,
   attestResults,
   attestationReceipt,
+  operatorIdFor,
   requestEnrollment,
   submitJob,
 } from '@o2/core'
@@ -355,7 +356,10 @@ describe('MR-02 — a sovereign aggregation admits an owner’s partial, or name
         [ALICE.ownerId, BOB.ownerId].toSorted(),
       )
       expect(value.contributions.map((c) => c.ownerId)).toStrictEqual([ALICE.ownerId, BOB.ownerId])
-      expect(value.contributions.map((c) => c.operators)).toStrictEqual([['alice-op'], ['bob-op']])
+      expect(value.contributions.map((c) => c.operators)).toStrictEqual([
+        [operatorIdFor(ALICE.ownerId)],
+        [operatorIdFor(BOB.ownerId)],
+      ])
 
       // Coverage, derived and never declared.
       expect(coverage.complete).toBe(true)

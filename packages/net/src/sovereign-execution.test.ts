@@ -11,6 +11,7 @@ import {
   encodeCanonical,
   executeVerified,
   guardSovereignty,
+  operatorIdFor,
   planWithOffers,
   publishCapabilities,
   requestEnrollment,
@@ -349,7 +350,7 @@ describe('criterion 6 — an owner’s own nodes verify each other', () => {
       const receipt = attestationReceipt(aliceSet?.certificates ?? [])
       expect(receipt.strength).toBe('owner-domain')
       expect(receipt.replicas).toBe(2)
-      expect(receipt.operators).toEqual(['alice-op'])
+      expect(receipt.operators).toEqual([operatorIdFor(fabric.aliceUserKey)])
       expect(receipt.description).toContain('not across operators')
     } finally {
       fabric.close()

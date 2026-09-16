@@ -328,8 +328,6 @@ async function standUp(): Promise<Fixture> {
       provider.multiaddrs[0] as string,
       '--user-key',
       await writeUserKey(name, privateKey),
-      '--operator-id',
-      `${name}-ops`,
       // A pinned trust anchor, deliberately not derived by the binary — see `--owner-key`.
       '--owner-key',
       userKey,

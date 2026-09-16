@@ -1,12 +1,14 @@
+import { ed25519 } from '@noble/curves/ed25519.js'
 import { describe, expect, it } from 'vitest'
 import { CID } from 'multiformats/cid'
 import { MemoryBlockstore } from '../blockstore/memory.ts'
 import { canonicalCid } from '../canonical/encode.ts'
 import type { CanonicalValue } from '../canonical/encode.ts'
 import type { JobCheckpoint } from '../checkpoint.ts'
+import { toHex } from '../capability.ts'
 import { describeCoverage } from '../coverage.ts'
 import type { CoverageReport } from '../coverage.ts'
-import { EnrollmentAuthority, requestEnrollment } from '../enrollment.ts'
+import { EnrollmentAuthority, operatorIdFor, requestEnrollment } from '../enrollment.ts'
 import type { NodeCertificate } from '../enrollment.ts'
 import { DEFAULT_LEASE_MS, DEFAULT_MAX_GENERATIONS } from '../lease.ts'
 import { signName } from '../naming.ts'
@@ -2964,6 +2966,10 @@ const OWNER_KEY = new Uint8Array(32).fill(20)
  * Derived from the operator name rather than a counter so the mapping is stable across runs
  * and a reader can see which owner a certificate belongs to without tracing call order.
  */
+function operatorOf(operatorId: string): string {
+  return operatorIdFor(toHex(ed25519.getPublicKey(ownerKeyFor(operatorId))))
+}
+
 function ownerKeyFor(operatorId: string): Uint8Array {
   const seed = new Uint8Array(32)
   seed.set(OWNER_KEY)
@@ -3139,7 +3145,7 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({
       strength: 'owner-domain',
       replicas: 2,
-      operators: ['op-bob'],
+      operators: [operatorOf('op-bob')],
     })
   })
 
@@ -3165,7 +3171,7 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({
       strength: 'independent',
       replicas: 2,
-      operators: ['op-a', 'op-b'],
+      operators: [operatorOf('op-a'), operatorOf('op-b')].sort(),
     })
   })
 
@@ -3425,7 +3431,7 @@ describe('VER-03/VER-04 — a public shard wanting verification gets a composed 
     const shard = r.job.shards[0] as ShardResult
     expect(shard.quorum).toMatchObject({ kind: 'composed' })
     if (shard.quorum.kind === 'composed') {
-      expect([...shard.quorum.operators].sort()).toStrictEqual(['op-a', 'op-b'])
+      expect([...shard.quorum.operators].sort()).toStrictEqual([operatorOf('op-a'), operatorOf('op-b')].sort())
     }
     expect(shard.degraded).toBe(false)
     expect(shard.attestation).toMatchObject({ strength: 'independent' })

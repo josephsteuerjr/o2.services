@@ -1,3 +1,4 @@
+import { ed25519 } from '@noble/curves/ed25519.js'
 import {
   EnrollmentAuthority,
   LOCAL_COMBINE_EXECUTOR,
@@ -10,11 +11,13 @@ import {
   decodeCanonical,
   deriveReduceTree,
   fabricCombiner,
+  operatorIdFor,
   publicNodes,
   rendezvousRank,
   requestEnrollment,
   signCombine,
   submitJob,
+  toHex,
 } from '@o2/core'
 import type {
   Blockstore,
@@ -554,6 +557,32 @@ const FIXTURE_PROVIDER_SEED = new Uint8Array(32).fill(41)
 const FIXTURE_USER_SEED = new Uint8Array(32).fill(42)
 
 /**
+ * The user key a named operator's workers belong to — one key per name, since VER-11.
+ *
+ * **Every worker below used to enrol under the single `FIXTURE_USER_SEED` while asking for a
+ * `operatorId` of its own**, and the provider signed whatever it was asked. So the arm this
+ * file reads as *"independent across two"* was two workers belonging to ONE user, differing
+ * in a string, and `classifyAttestation` called them two parties because two strings is all
+ * it has ever asked for. The provider now derives the field from the user key, so a fixture
+ * that wants two operators supplies two owners — which is what two operators has always
+ * meant. Every case's intent is unchanged: `'alice-op'` twice is still one operator and still
+ * `owner-domain`; `'alice-op'` beside `'bob-op'` is still independent.
+ */
+function fixtureUserSeed(operatorId: string): Uint8Array {
+  const seed = new Uint8Array(32)
+  seed.set(FIXTURE_USER_SEED)
+  for (let i = 0; i < operatorId.length; i++) {
+    seed[i % 32] = ((seed[i % 32] ?? 0) ^ operatorId.charCodeAt(i)) & 0xff
+  }
+  return seed
+}
+
+/** What a provider will sign for a worker declared under `operatorId`. */
+function fixtureOperatorId(operatorId: string): string {
+  return operatorIdFor(toHex(ed25519.getPublicKey(fixtureUserSeed(operatorId))))
+}
+
+/**
  * How one fixture peer answers a `combine`.
  *
  * `'the production agent'` is `serveAgent`, which is what makes the three label readings
@@ -676,7 +705,7 @@ async function combineFabric(workers: readonly FixtureWorker[]) {
     // fixed fixture epoch would make every certificate here `not-yet-valid` or `expired`
     // and every reading below the named absence for a reason unrelated to attestation.
     const enrolled = authority.enrol(
-      await requestEnrollment(nodeSeed, FIXTURE_USER_SEED, {
+      await requestEnrollment(nodeSeed, fixtureUserSeed(worker.operatorId), {
         discoverability: 'seed',
         relayIds: [],
       }),

@@ -4,7 +4,8 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { verifyCertificate } from '@o2/core'
+import { ed25519 } from '@noble/curves/ed25519.js'
+import { operatorIdFor, toHex, verifyCertificate } from '@o2/core'
 import type { NodeCertificate } from '@o2/core'
 import { SEED_BYTES, identityFromSeed } from '@o2/libp2p'
 import type { IdentityProtection } from '@o2/libp2p'
@@ -136,7 +137,10 @@ describe('AUTH-01 — a node obtains its certificate before start() returns', ()
     expect(certificate).not.toBeNull()
     expect(certificate?.nodeKey).toBe(applicant.nodeKey)
     expect(certificate?.issuer).toBe(provider.issuerKey)
-    expect(certificate?.operatorId).toBe('harbour-ops')
+    // Derived by the provider from the public half of `USER_SEED` — VER-11. This node was
+    // started with no operator name of any kind: `FabricNodeOptions.enrollment` has no such
+    // field since 2026-09-16.
+    expect(certificate?.operatorId).toBe(operatorIdFor(toHex(ed25519.getPublicKey(USER_SEED))))
     expect(certificate?.expiresAt).toBeGreaterThan(Date.now())
 
     // The user key is DERIVED from the private key inside `requestEnrollment`, never

@@ -507,8 +507,6 @@ async function standUp(): Promise<Fixture> {
       provider.multiaddrs[0] as string,
       '--user-key',
       await writeUserKey(name, OWNER_PRIVATE.get(owner) as Uint8Array),
-      '--operator-id',
-      OPERATOR.get(owner) as string,
       // AUTH-03's pinned anchor. Deliberately NOT derived by the binary — a clearance may
       // be derived from a signed statement, a trust anchor is configuration.
       '--owner-key',

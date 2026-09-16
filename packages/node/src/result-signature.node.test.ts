@@ -326,8 +326,6 @@ async function standUp(): Promise<Fixture> {
       provider.multiaddrs[0] as string,
       '--user-key',
       await writeUserKey(name, fill),
-      '--operator-id',
-      `${name}-ops`,
     ])
 
   const a = await enrol('a', USER_SEEDS[0])
