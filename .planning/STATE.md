@@ -427,18 +427,19 @@ stopped_at: >-
   for irreversible acts produces `Partial` rows by construction. Written at the ceiling: if a
   fourth raise of the same shape arrives, the question is whether `experiment-not-run` needs its
   own count, not whether the ceiling moves again.
-last_updated: "2026-09-07T10:20:00.000Z"
+last_updated: "2026-09-16T08:00:00.000Z"
 last_activity: >-
-  2026-09-07 — Phases 38 and 39 executed as far as agents can take them. Ten plans across two
-  phases, and both phases end at the same place: the instruments exist and the acts are the
-  owner's. RUN-06, RUN-01 and RUN-07 all moved to Partial. The urgent finding is not a criterion
-  -- an object whose region is null refuses every halt, and the deployed one reported null.
+  2026-09-16 — Phase 44 executed: the provider derives a node's operator identity instead of
+  copying it from the request, and refuses a request that disagrees. VER-11 closed, taking the
+  v1 ledger to 70 of 74. The finding is larger than the fix -- four fixtures here, including
+  the published benchmark rung, were calling one owner's machines two operators. Phase 45 holds
+  the security weight and is gated on OWNER-ACTIONS row 3c.
 progress:
   total_phases: 17
-  completed_phases: 0
-  total_plans: 1
-  completed_plans: 1
-  percent: 0
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 6
 ---
 
 <!--
