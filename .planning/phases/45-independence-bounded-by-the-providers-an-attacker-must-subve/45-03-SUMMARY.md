@@ -52,7 +52,12 @@ That is the whole of what changed.
 ## What each criterion cost
 
 Every reading taken with `EXIT=$?` on the line **immediately** after the command — no pipe,
-no trailing `echo`, no `tail`. Host quiet throughout (`load/core` 0.85–1.74 against a
+no trailing `echo`, no `tail` — **with one exception, labelled in the table below rather than
+left to be assumed**: the `slow-specs` baseline taken before the new file existed went through
+a pipe, so its exit was never read. That row is the one reading here that does not meet this
+repository's own rule, and the comparison it belongs to is carried by the post-change side,
+which was retaken directly (`EXIT=0`, `15 passed (15)`, host quiet at load/core 0.85) after
+this plan's commits had landed. Host quiet throughout (`load/core` 0.85–1.74 against a
 ceiling of 4.00, 8 cores).
 
 | Criterion | Instrument | Result |
@@ -61,7 +66,7 @@ ceiling of 4.00, 8 cores).
 | the same after Task 1's half alone | direct `EXIT=$?` | **0** — 21 passed |
 | `npx tsc --noEmit` | direct `EXIT=$?` | **0**, four times across the plan |
 | the nine cheap guards, via the commit hook | twice | **0** — 401 passed, 2.28 s and 2.14 s |
-| `packages/node/src/slow-specs.node.test.ts` **before** the new file existed | direct `EXIT=$?` | **0** — 15 passed |
+| `packages/node/src/slow-specs.node.test.ts` **before** the new file existed | **piped — the exit was NOT read directly** | 15 passed, and the reading is therefore weaker than every other row here. It is kept because it is the only side of the comparison that can no longer be retaken, and it is labelled rather than deleted |
 | the same **after** the new file was tracked | direct `EXIT=$?` | **0** — 15 passed. See the discrepancy below |
 
 Corpus, measured by the guard's own scan and reproduced independently:
@@ -337,7 +342,7 @@ change, `--project node`, `EXIT=$?` read directly:
 
 | When | Reading | Exit |
 |---|---|---|
-| before the new file existed | `15 passed (15)`, 10 ms | **0** |
+| before the new file existed | `15 passed (15)`, 10 ms | **not read directly — piped.** See the table above |
 | after it was tracked | `15 passed (15)`, 9 ms | **0** |
 | again, twice, through the commit hook | `15 passed (15)` | **0** |
 
