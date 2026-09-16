@@ -543,11 +543,25 @@ async function twoTabsOnOneRelay(
   label: string,
   operatorOfB: string,
   ownerOfB: number[],
-  operatorOfRelay: string,
+  /**
+   * The relay's OWNER — a key, not a name — and the substitution is VER-11's, 2026-09-16.
+   *
+   * This took `operatorOfRelay: string` and paired it with a hard-coded `owner: OWNER_RELAY`,
+   * so the one-operator arm below stood a relay up under the relay's own key while telling it
+   * to call itself `OPERATOR_A`. **That is the move this phase exists to stop**, performed by a
+   * fixture that depended on it: a node claiming a party it does not belong to, which the
+   * provider signed because it checked nothing. The arm then had one operator across three
+   * candidates, and rule 1 fired.
+   *
+   * Passing the key makes the arm mean what its comment always said — *tab B and the relay
+   * enrol under tab A's own owner* — and makes the alternative unrepresentable rather than
+   * merely discouraged.
+   */
+  ownerOfRelay: number[],
 ): Promise<{ page: Page; relayPeerId: string }> {
   const { page, relayPeerIds } = await twoTabsOnRelays(
     label,
-    [{ operator: operatorOfRelay, owner: OWNER_RELAY }],
+    [{ operator: operatorOf(ownerOfRelay), owner: ownerOfRelay }],
     operatorOfB,
     ownerOfB,
   )
@@ -600,7 +614,7 @@ describe('VER-03/VER-04 — the quorum composer’s verdict, on the page a visit
     // of VER-04: `insufficient-operators` would also refuse this shard, and would mean the
     // fixture was built wrong. `quorum-agents.node.test.ts` separates its two fabrics the
     // same way and for the same reason.
-    const { page, relayPeerId } = await twoTabsOnOneRelay('many-op', OPERATOR_B, OWNER_B, OPERATOR_RELAY)
+    const { page, relayPeerId } = await twoTabsOnOneRelay('many-op', OPERATOR_B, OWNER_B, OWNER_RELAY)
 
     await runTheLadder(page, 600_000)
     const verdict = await quorumRegion(page)
@@ -636,9 +650,15 @@ describe('VER-03/VER-04 — the quorum composer’s verdict, on the page a visit
 
   it('refuses for the operators when every candidate is one operator’s, and says which', async () => {
     // The only difference from the case above: tab B and the relay enrol under tab A's own
-    // owner and operator. Same relay, same transports, same provider, same everything else — so
-    // a different verdict here can only have come from `operatorId`, which is VER-04's subject.
-    const { page } = await twoTabsOnOneRelay('one-op', OPERATOR_A, OWNER_A, OPERATOR_A)
+    // owner. Same relay, same transports, same provider, same everything else — so a different
+    // verdict here can only have come from `operatorId`, which is VER-04's subject.
+    //
+    // **It read "tab A's own owner AND OPERATOR" until VER-11, 2026-09-16, and the second noun
+    // was doing real work**: the relay was given tab A's operator NAME while keeping its own
+    // key, which is a node claiming a party it does not belong to. It is one noun now because
+    // an owner is all there is to pass, and this arm is a genuine single-party fabric rather
+    // than a three-party one wearing one name.
+    const { page } = await twoTabsOnOneRelay('one-op', OPERATOR_A, OWNER_A, OWNER_A)
 
     await runTheLadder(page, 600_000)
     const verdict = await quorumRegion(page)
