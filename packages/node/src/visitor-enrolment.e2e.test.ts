@@ -632,7 +632,24 @@ afterAll(async () => {
   await strangerNode?.stop().catch(() => {})
   await stopSeed()
   await provider?.stop().catch(() => {})
-  await rm(workdir, { recursive: true, force: true })
+  /*
+   * **`maxRetries`, and the error it answers was observed here.** A full `e2e` lane on
+   * 2026-09-15, on a host its own banner called quiet, failed this whole FILE at the suite
+   * level with `ENOTEMPTY: directory not empty, rmdir '<workdir>/member/.datastore'` —
+   * after all 11 of its cases had passed. A teardown race reported as a red file.
+   *
+   * The remedy is `issuance-rate.node.test.ts`', verbatim in shape, because the error is
+   * verbatim, and this is the third file to need it after `admission-agents` and
+   * `fs-blockstore`: Node retries EBUSY, EMFILE, ENFILE, ENOTEMPTY and EPERM with a linear
+   * backoff, and only when `recursive` is set. What is waited out is the tail of a
+   * shutdown — `member` is the node whose store is still being written when the `stop()`
+   * above has already resolved.
+   *
+   * It does NOT settle why a write can land after `FabricNode.stop()` resolves: `stop()`
+   * closes the rpc, the pool, the verifier, the transport and libp2p, and closes neither
+   * store. That is a question about `fabric-node.ts` and it is now open in four files.
+   */
+  await rm(workdir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
 }, 180_000)
 
 describe('a --admit-issuer seed states its door and its way through it', () => {
