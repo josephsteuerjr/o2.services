@@ -2890,8 +2890,10 @@ attack it was about; (6) RFC-0003 gained the threat and two invariants — `grep
 
 **What neither phase fixes — recorded so nobody reads the pair as a complete answer**: an attacker who reaches two providers; providers colluding, or one party running several, which makes **issuer diversity a PROXY for party diversity and it must be labelled a proxy**; the cost of an identity, which only proof-of-work or invitation touches and which the design document defers as option C; and `relayIds`, requester-chosen by the same sentence at `enrollment.ts:71` and read by the path-diversity rule — the same shape of defect, not examined. **Sovereign data is unaffected throughout**: an owner-pinned shard is `owner-attested` by construction and has no quorum to subvert.
 
-**Plans**: not yet planned.
-
+**Plans**: `45-CONTEXT.md`, then 4 plans in 4 sequential waves. **Nothing in this phase runs in parallel, and that is a choice with a cost behind it**: every plant targets `packages/core/src/quorum.ts`, and `CLAUDE.md` records two verifiers planting `fabric-node.ts` together producing a false security finding that took 111 executions to refute.
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 45 to break down)
+- [ ] `45-01-PLAN.md` — the mechanism: the `single-issuer` strength, `requireDistinctIssuers` defaulting true, the `single-issuer-quorum` refusal, issuer-grouped round-robin composition, the live path's explicit waiver, and the cases carrying criteria 1 and 2 (wave 1)
+- [ ] `45-02-PLAN.md` — criterion 5 where a human reads it: the issuer count on all five surfaces, the census of every fixture that was asserting `independent` over one provider, and the measured check that `bin/bench.ts`'s real rungs sit below the rule's reach (wave 2)
+- [ ] `45-03-PLAN.md` — criterion 3's guard over the source with its positive control, and the release-copy check the gate paragraph committed this phase to (wave 3)
+- [ ] `45-04-PLAN.md` — criterion 4: both plants watched red and restored by surgical inverse, the mutation ledger's observed signatures, VER-12's tick, and the re-measured `vitest.config.ts` counts (wave 4)
