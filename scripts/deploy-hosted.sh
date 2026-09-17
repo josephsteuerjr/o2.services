@@ -279,9 +279,28 @@ fi
 #
 # Without this the two drift in the one direction nobody notices: a release tagged `v2.0.1` over
 # an unbumped manifest deploys reporting `2.0.0-rc.1`, and the node's answer to "what are you
-# running" is a lie that looks like a version. `GITHUB_REF_NAME` is set only on the release path,
-# so a laptop run skips the check rather than failing it.
-if [ -n "${GITHUB_REF_NAME:-}" ] && [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+# running" is a lie that looks like a version.
+#
+# **The guard is `GITHUB_REF_TYPE = tag`, and the reason is a measured regression rather than a
+# preference.** This condition read `[ -n "${GITHUB_REF_NAME:-}" ]` until 2026-09-16, on the
+# stated premise that *"`GITHUB_REF_NAME` is set only on the release path, so a laptop run skips
+# the check rather than failing it."* **The first half of that sentence is false.** GitHub sets
+# `GITHUB_REF_NAME` on EVERY workflow run — on a branch push it is the branch name — so this
+# check fired on every CI run of `ci.yml`, compared `develop` against `v2.0.0-rc.13`, and exited
+# 1 before the script had done anything. Two specs that run `--dry-run` went red with it
+# (`hosted-tier-deploy`'s two positive cases at 54 ms each, and `deploy-preserves-enrolment`),
+# and `ci.yml` was red on `develop` for **every merge from 2026-09-15 onward** — at least twenty
+# consecutive runs — for this reason and not for anything the merges contained.
+#
+# **What makes the shape dangerous rather than merely broken**: the two REFUSAL cases beside
+# them stayed green the whole time, because a script that dies at line 284 refuses everything,
+# including the things it is supposed to refuse. Only the positive controls could see it. That
+# is the argument those controls exist for, written down where the defect was.
+#
+# `GITHUB_REF_TYPE` is `tag` on a tag-triggered run and `branch` otherwise, so it discriminates
+# the release path, which is what the original comment meant. A laptop run sets neither and
+# skips the check, unchanged.
+if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "${GITHUB_REF_NAME:-}" != "v$VERSION" ]; then
   echo "❌ REFUSED: the release tag and the manifest disagree about what this is." >&2
   echo "   tag:              $GITHUB_REF_NAME" >&2
   echo "   package.json:     $VERSION  (the deploy would announce itself as this)" >&2

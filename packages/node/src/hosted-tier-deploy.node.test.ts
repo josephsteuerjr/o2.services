@@ -524,12 +524,39 @@ describe('one version, and the deployed node can be asked for it', () => {
     expect(DEPLOY_SCRIPT).toContain('--var "O2_VERSION:$VERSION"')
   })
 
-  it('refuses a release whose tag disagrees with the manifest', () => {
+  it('refuses a release whose tag disagrees with the manifest, and ONLY on a tag', () => {
     // The drift this closes is one layer down from the one the owner found: a release tagged
     // v2.0.1 over an unbumped manifest would deploy announcing the older number, and the node's
     // answer to "what are you running" would be a lie shaped like a version.
     expect(DEPLOY_SCRIPT).toContain('GITHUB_REF_NAME')
-    expect(DEPLOY_SCRIPT).toContain('"$GITHUB_REF_NAME" != "v$VERSION"')
+    expect(DEPLOY_SCRIPT).toContain('"${GITHUB_REF_NAME:-}" != "v$VERSION"')
+
+    // **The second half, added 2026-09-16 after the first half alone fired on every branch
+    // push.** The condition guarded on `GITHUB_REF_NAME` being non-empty, on the stated premise
+    // that it is *"set only on the release path"*. GitHub sets it on EVERY run — on a push it is
+    // the branch name — so the script compared `develop` against `v2.0.0-rc.13` and exited 1
+    // before doing anything, on every `ci.yml` run from 2026-09-15 onward.
+    //
+    // `GITHUB_REF_TYPE` is the discriminator the original comment meant: `tag` on a
+    // tag-triggered run, `branch` otherwise. Asserted as source text because this case reads a
+    // script rather than running it — the behavioural halves live in the four `--dry-run`
+    // cases below, two of which are the positive controls that were the only thing able to see
+    // this at all. The refusal cases stayed GREEN throughout, because a script that dies early
+    // refuses everything, including what it is supposed to refuse.
+    expect(DEPLOY_SCRIPT).toContain('"${GITHUB_REF_TYPE:-}" = "tag"')
+
+    // **The absence is asserted over the CONDITION LINE, not over the file** — and that is not
+    // a convenience, it is this repository's recorded hazard. Asked of the whole script the
+    // assertion fires on the comment above the fix, which quotes the retired shape in order to
+    // explain it; `vocabulary.node.test.ts` has reddened twice on exactly that collision and
+    // `wrangler.jsonc`'s header records it twice more. The condition line is also the only
+    // place where the old shape would MEAN anything — a quoted shape in prose changes no
+    // behaviour, and a guard that cannot tell those apart teaches people to delete the prose.
+    const tagCheckLine = DEPLOY_SCRIPT.split('\n').find(
+      (line) => line.startsWith('if [') && line.includes('GITHUB_REF_TYPE'),
+    )
+    expect(tagCheckLine, 'the tag check is no longer one `if` on one line').toBeDefined()
+    expect(tagCheckLine).not.toContain('-n "${GITHUB_REF_NAME:-}"')
   })
 
   it('rolls the deploy back when the node answers with a version other than the one sent', () => {

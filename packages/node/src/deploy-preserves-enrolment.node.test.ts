@@ -146,7 +146,15 @@ describe('AUTH-01 — a deploy carries the enrolment vars or refuses', () => {
         '{"enrolment":{"issues":true}}',
       )
 
-      const run = spawnSync('sh', [SCRIPT_PATH, '--live', '--skip-tests'], {
+      // `bash`, not `sh`, and the difference is a measured CI failure rather than a style
+      // point. `scripts/deploy-hosted.sh` declares `#!/usr/bin/env bash` and opens with
+      // `set -euo pipefail`. On macOS `/bin/sh` tolerates `pipefail`; on Ubuntu `/bin/sh` is
+      // `dash`, which does not have it, so this line produced
+      // `scripts/deploy-hosted.sh: 77: set: Illegal option -o pipefail` and reddened `ci.yml`
+      // on every push from 2026-09-15 onward while passing on every laptop. The sibling spec
+      // `hosted-tier-deploy.node.test.ts:589` already spawned `bash`; this one did not, and two
+      // copies of one invocation diverged exactly the way this repository's scripts say they do.
+      const run = spawnSync('bash', [SCRIPT_PATH, '--live', '--skip-tests'], {
         cwd: ROOT,
         encoding: 'utf8',
         env: {
