@@ -481,12 +481,21 @@ describe('VER-08/09/10 — a result signed in one process verifies in another', 
     for (const shard of result.job.shards) {
       expect('kind' in shard.attestation).toBe(false)
       if ('kind' in shard.attestation) continue
-      expect(shard.attestation.strength).toBe('independent')
+      // **`'independent'` until 2026-09-16, VER-12.** What it was relying on is that two user
+      // keys make a result independent; two user keys is what makes them two **operators**, and
+      // an attacker who reaches one certificate provider mints as many user keys as they please.
+      // This rig runs one provider — two agents, two owner seeds, one authority — so the two
+      // operators are still one party's reach, which is the whole of VER-12 and is what the
+      // label now says. A rig's label describes the rig: `45-CONTEXT.md` §4.
+      expect(shard.attestation.strength).toBe('single-issuer')
       expect(shard.attestation.replicas).toBe(2)
+      // The count the label turns on, beside the operator count below it — the two together
+      // are what distinguish this reading from `'independent'`, and neither alone does.
+      expect(shard.attestation.issuers).toHaveLength(1)
       // Derived from the two owners this fixture spawned its agents under — VER-11. It read
       // `['a-ops', 'b-ops']` until 2026-09-16, when the two were strings each agent was told
       // to ask for. Two operators is two user keys now, which is what made these two nodes
-      // independent in the first place.
+      // distinct operators in the first place.
       expect([...shard.attestation.operators].sort()).toStrictEqual(
         USER_SEEDS.map((seed) => operatorIdFor(toHex(ed25519.getPublicKey(new Uint8Array(SEED_BYTES).fill(seed))))).sort(),
       )

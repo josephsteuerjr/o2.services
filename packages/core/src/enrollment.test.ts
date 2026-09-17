@@ -979,12 +979,20 @@ describe("VER-11 — the operator identity is the issuer's to decide", () => {
    * **Nothing was.** Until 2026-09-16 `EnrollmentAuthority.enrol` copied `request.operatorId`
    * into the certificate verbatim (`enrollment.ts:1356`), checked nothing, and had nothing to
    * check it against. `NodeCertificate` calls that field *"the unit of quorum diversity"*;
-   * `classifyAttestation` returns `'independent'` the moment two certificates carry two
+   * `classifyAttestation` returned `'independent'` the moment two certificates carried two
    * different strings. So an applicant chose, unchecked, how many parties a quorum believed it
    * was talking to — and no case in this repository asserted otherwise, because every fixture
    * supplied a name and got that name back.
    *
    * The first case below is the one that would have caught it.
+   *
+   * The past tense in that paragraph is load-bearing as of 2026-09-16, VER-12: two different
+   * operator strings no longer reach `'independent'` on their own. The label now needs two
+   * certificate authorities as well, and two operators under one authority read
+   * `'single-issuer'`. That does not weaken anything argued here — this hole was about who
+   * decides the operator field, and it is closed by the same check whatever label sits above
+   * it — but the sentence describing the old behaviour must not read as a description of the
+   * current one.
    *
    * ## Why they are hand-rolled rather than built through `requestEnrollment`
    *

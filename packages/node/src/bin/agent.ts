@@ -2439,9 +2439,15 @@ if (sovereignOwners.length > 0) {
         attestation.reason
       )
     }
+    // The issuer count is printed beside the other two because the strength above it now
+    // turns on both dimensions at once. With only replicas and operators on the line, a
+    // reader who sees the middle label cannot tell whether the shortfall was in how many
+    // operators answered or in how many certificate authorities stood behind them — and
+    // telling those two apart on the surface is the whole of ROADMAP criterion 5.
     return (
       `${attestation.strength} (replicas ${attestation.replicas},` +
-      ` operators ${attestation.operators.length}) — ${attestation.description}`
+      ` operators ${attestation.operators.length},` +
+      ` issuers ${attestation.issuers.length}) — ${attestation.description}`
     )
   }
 

@@ -124,6 +124,10 @@ import { describeAttestation } from '@o2/core'
  *    and `independent` (*"expected 'owner-attested' to be 'independent'"*) — and the
  *    `owner-attested` case **passes**. That is this file's own argument, measured: one
  *    reading alone would have been satisfied by exactly this defect.
+ *    [There are **four** labels since 2026-09-16, VER-12 — `single-issuer` sits between
+ *    `owner-domain` and `independent` — so a plant of this shape today has one more wrong
+ *    answer available to it than it had when this was observed. The observation stands as
+ *    taken; it was not re-run against the fourth label.]
  * 3. **The rung's redundancy moves under the label.** Force the real sweep to
  *    `redundancy: 2` in place of `Math.min(2, nodes)`. The 1-node rung then cannot place a
  *    second replica at all and its line changes to *"none established (agreeing 0,
@@ -202,8 +206,25 @@ const ATTESTATION = /^map attestation \(([^)]+)\): (.+)$/
  * matched.
  */
 const QUORUM = /^quorum \(([^)]+)\): (.+)$/
-/** A strength, its counts, and the kernel's sentence. */
-const STRENGTH = /^(owner-attested|owner-domain|independent) \(replicas (\d+), operators (\d+)\) — (.+)$/
+/**
+ * A strength, its counts, and the kernel's sentence.
+ *
+ * **Both halves of this pattern moved on 2026-09-16, VER-12, and they had to move together.**
+ * The alternation gained `single-issuer` — a fourth label the driver can now print — and the
+ * parenthetical gained a third count group, because `strengthReading` in `bin/bench.ts` now
+ * emits `issuers K` beside the other two.
+ *
+ * Moving only the alternation is the dangerous edit and it is a **silent** one. The measured
+ * failure, taken against this file on the commit that changed the driver and not this pattern:
+ * `strengthOf` threw `real/1 reported no strength: owner-attested (replicas 1, operators 1,
+ * issuers 1) — …` in two cases — loud — while the absence case at the top of the `describe`
+ * **passed**, because its only instrument is `STRENGTH.test(reading)` and a pattern that
+ * matches no real line makes `toBe(false)` true for free. That is the shape the note above
+ * warns about, observed rather than reasoned about: one arm of this file went vacuous and the
+ * run still reported it green.
+ */
+const STRENGTH =
+  /^(owner-attested|owner-domain|single-issuer|independent) \(replicas (\d+), operators (\d+), issuers (\d+)\) — (.+)$/
 /** The named absence, with the two counts that decide what to do about it. */
 const ABSENCE = /^none established \(agreeing (\d+), verified (\d+)\) — (.+)$/
 
@@ -467,25 +488,46 @@ function rung(transport: 'memory' | 'real', nodes: number): RungReading {
   return found
 }
 
-/** The strength a rung reported, with its counts and the sentence beside it. */
+/**
+ * The strength a rung reported, with its counts and the sentence beside it.
+ *
+ * `issuers` arrived with the third count group on 2026-09-16 and the description capture moved
+ * from index 4 to index 5 with it — a group inserted ahead of one already read renumbers it, and
+ * a record still reading `hit[4]` would silently start returning the issuer digit where the
+ * kernel's sentence belongs.
+ */
 function strengthOf(transport: 'memory' | 'real', nodes: number): {
   strength: string
   replicas: number
   operators: number
+  issuers: number
   description: string
 } {
   const { reading } = rung(transport, nodes)
+  return parseStrength(reading, `${keyOf(transport, nodes)} reported no strength`)
+}
+
+/**
+ * {@link STRENGTH} applied to one line, by the same code path whatever the line's origin.
+ *
+ * Split out of {@link strengthOf} so the VER-12 case below can put a **synthetic** line through
+ * the identical parser it puts the real rungs through. A control that parsed its own input some
+ * other way would be testing a second reader rather than this one.
+ */
+function parseStrength(
+  reading: string,
+  context: string,
+): { strength: string; replicas: number; operators: number; issuers: number; description: string } {
   const hit = STRENGTH.exec(reading)
   if (hit === null) {
-    throw new Error(
-      `${keyOf(transport, nodes)} reported no strength: ${reading}\n${attemptLog.join('\n')}`,
-    )
+    throw new Error(`${context}: ${reading}\n${attemptLog.join('\n')}`)
   }
   return {
     strength: hit[1] ?? '',
     replicas: Number(hit[2]),
     operators: Number(hit[3]),
-    description: hit[4] ?? '',
+    issuers: Number(hit[4]),
+    description: hit[5] ?? '',
   }
 }
 
@@ -540,7 +582,15 @@ describe('the driver says how strongly each rung was attested', () => {
       // anywhere in the line either, so a driver that appended a label after the absence
       // would be caught as well.
       expect(STRENGTH.test(reading)).toBe(false)
-      for (const strength of ['owner-attested', 'owner-domain', 'independent'] as const) {
+      // Four labels since 2026-09-16, VER-12. Enumerated exhaustively rather than sampled: a
+      // driver that started appending the label this phase introduced would otherwise walk
+      // straight past a check written to catch exactly that.
+      for (const strength of [
+        'owner-attested',
+        'owner-domain',
+        'single-issuer',
+        'independent',
+      ] as const) {
         expect(reading).not.toContain(describeAttestation(strength))
       }
     }
@@ -670,6 +720,93 @@ describe('the driver says how strongly each rung was attested', () => {
     // can reach, which stopped being the same value on 2026-09-16.
     expect(rung('real', 2).population, attemptLog.join('\n')).toBe(DEGRADED_RUN)
     expect(rung('real', 1).population, attemptLog.join('\n')).toBe(COMPLETED_RUN)
+  }, SPAWN_TIMEOUT_MS)
+
+  /**
+   * **VER-12 — the rungs are MEASURED to sit below the issuer rule, not believed to.**
+   *
+   * `45-CONTEXT.md` §4 draws the line this case stands on: a test fixture may be handed a
+   * second certificate authority, because the number of parties is the thing the rule counts —
+   * but a driver that publishes a reading of a real rig may not, because its labels have to
+   * describe the rig. `bin/bench.ts` is such a driver, and the belief about it is that its real
+   * rungs cannot reach `single-issuer` at all: every worker enrols under `BENCH_USER_SEED`
+   * unless `--sovereign` is passed, so a `--discover` rung is **one operator**, and the label
+   * that needs two operators and one authority is unreachable before the authority count is
+   * even consulted. §4 says in as many words: *verify that, do not assume it.*
+   *
+   * ## An absence is worth exactly what its control is worth
+   *
+   * Two assertions of a negative — no rung reports the label, no rung refuses on the issuer
+   * ground — are both satisfied by an instrument that cannot see the label at all. This file
+   * has already paid for that lesson once, and recently: on the commit that added a third count
+   * to the driver and left {@link STRENGTH} at two, the absence case at the top of this
+   * `describe` went **green while its only instrument matched nothing**. So the negative here is
+   * carried by two controls, and they answer two different questions:
+   *
+   * - **shape** — a `single-issuer` line whose parenthetical is a real rung's own bytes,
+   *   lifted out of a reading the driver just emitted rather than typed here. If the driver's
+   *   template moves, this control moves with it and fails against a stale pattern, which is
+   *   precisely what a control typed beside the pattern could never do.
+   * - **groups** — a line whose three counts are three *different* numbers, so the parsed
+   *   record proves the groups are the ones this file thinks they are. The shape control cannot
+   *   ask this: every count on the real rungs is 1 or 2, and a pattern with its groups
+   *   transposed reads those back indistinguishably.
+   *
+   * Both go through {@link parseStrength}, the same call the real rungs go through — a control
+   * that parsed its input some other way would be a reading of a second parser.
+   */
+  it('VER-12 — no real rung reaches single-issuer, and the instrument could have seen it', async () => {
+    await readings()
+
+    // ---- the control, first, so a stale instrument fails HERE and names itself -------------
+    //
+    // Deliberately before the absence below. A vacuous instrument that is asked for the
+    // negative first reports the negative, truthfully and uselessly, and the run is green.
+    const emitted = rung('real', 1).reading
+    const opened = emitted.indexOf(' (')
+    const closed = emitted.indexOf(') — ')
+    expect(opened, `no parenthetical in the driver's own line: ${emitted}`).toBeGreaterThan(0)
+    expect(closed, `no parenthetical in the driver's own line: ${emitted}`).toBeGreaterThan(opened)
+    // The driver's bytes, not this file's: everything between its own parentheses, carried
+    // across verbatim under a different label and the kernel's sentence for that label.
+    const shapeControl =
+      `single-issuer ${emitted.slice(opened + 1, closed + 1)} — ${describeAttestation('single-issuer')}`
+    const shaped = parseStrength(shapeControl, 'the shape control did not parse')
+    expect(shaped.strength).toBe('single-issuer')
+    expect(shaped.description).toBe(describeAttestation('single-issuer'))
+
+    // Three different numbers, so a transposed or misnumbered group cannot read back as the
+    // right answer — which all-ones and the 2/1/1 of the real rungs both would.
+    const groupControl =
+      `single-issuer (replicas 5, operators 3, issuers 2) — ${describeAttestation('single-issuer')}`
+    const grouped = parseStrength(groupControl, 'the group control did not parse')
+    expect(grouped.strength).toBe('single-issuer')
+    expect(grouped.replicas).toBe(5)
+    expect(grouped.operators).toBe(3)
+    expect(grouped.issuers).toBe(2)
+    expect(grouped.description).toBe(describeAttestation('single-issuer'))
+
+    // ---- and now the absence, on an instrument just shown to be able to see it -------------
+    for (const nodes of [1, 2]) {
+      const reading = strengthOf('real', nodes)
+      expect(reading.strength, `real/${String(nodes)}: ${rung('real', nodes).reading}`).not.toBe(
+        'single-issuer',
+      )
+      // The mechanism, asserted rather than left to the label: one operator is why the rung
+      // cannot reach a label that needs two, and one authority is what the fabric currently
+      // has. Both as literals — a count recomputed from the reading would agree with itself.
+      expect(reading.operators).toBe(1)
+      expect(reading.issuers).toBe(1)
+      // And the composer never refused on the issuer ground either. A rung that refused there
+      // would be a rig the rule DOES reach, whatever label survived the degrade.
+      expect(quorums.get(`real/${String(nodes)}`) ?? '').not.toContain('single-issuer-quorum')
+    }
+
+    // The sentence too, not only the word: a driver appending the label's own sentence after a
+    // weaker strength would pass every assertion above.
+    for (const nodes of [1, 2]) {
+      expect(rung('real', nodes).reading).not.toContain(describeAttestation('single-issuer'))
+    }
   }, SPAWN_TIMEOUT_MS)
 
   it('did not move the sweep, and wrote nothing into the repository', async () => {

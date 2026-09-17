@@ -142,10 +142,14 @@
  * >
  * > **The bound an attacker actually meets is the number of PROVIDERS they must reach**, not
  * > the number of names they can invent. `AttestationReceipt.issuers` reports that dimension
- * > as of this change; nothing refuses on it yet, because requiring distinct issuers makes
- * > `'independent'` unreachable while one provider is running, and how many providers this
- * > fabric has is an owner's decision. See `docs/architecture/RFC-0003-RESPONSE-05` §6 and
- * > `.planning/ROADMAP.md` Phase 45. Revocation is **non-renewal on the certificate's own clock**, not a list and not
+ * > as of this change, and since VER-12 (Phase 45) `composeQuorum` **refuses** on it:
+ * > `requireDistinctIssuers` defaults true and ships at full strength. The owner ruled one
+ * > provider on 2026-09-16 (`.planning/OWNER-ACTIONS.md` §3c), so `'independent'` is
+ * > unreachable on this fabric until a second provider exists and the strongest label a
+ * > result carries is `'single-issuer'`. That is the bound stated rather than softened —
+ * > the number of providers an attacker must reach is one, and the label now says so. See
+ * > `docs/architecture/RFC-0003-RESPONSE-05` §6 and `.planning/ROADMAP.md` Phase 45.
+ * > Revocation is **non-renewal on the certificate's own clock**, not a list and not
  * a shorter clock; `certificateLifetimeMs` keeps its default.
  *
  * > **SUPERSEDED 2026-08-23 — the last clause only, by owner ruling.** The default is now

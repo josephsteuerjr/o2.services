@@ -3149,7 +3149,7 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     })
   })
 
-  it('reads independent when two verified replicas answer under different operators', async () => {
+  it('reads single-issuer when two verified replicas answer under different operators', async () => {
     const a = await enrol('a', 'op-a', ['relay-a'])
     const b = await enrol('b', 'op-b', ['relay-b'])
     const r = await submitJob(
@@ -3168,11 +3168,25 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
 
     expect(r.ok).toBe(true)
     if (!r.ok) return
+    // **`'independent'` until 2026-09-16, VER-12 — and what it was relying on was true of one
+    // dimension and silent about the other.** `op-a` and `op-b` are two owner keys, so two
+    // genuinely distinct operators did agree; every `enrol` above defaults to `PROVIDER_KEY`,
+    // so one certificate authority vouched for both of them. An attacker who reaches that one
+    // authority mints both sides of this quorum, which is the bound the label now reports.
+    //
+    // **This is the end-to-end reading of the live path**, and it is `submitJob`'s own: the job
+    // path waives the issuer REFUSAL, so composition still succeeds at `redundancy: 2` and what
+    // moved is the label on the receipt, not whether there is one.
     expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({
-      strength: 'independent',
+      strength: 'single-issuer',
       replicas: 2,
       operators: [operatorOf('op-a'), operatorOf('op-b')].sort(),
     })
+    // The count the label turns on, asserted rather than left implicit — a fixture that
+    // silently grew a second authority would otherwise move the label and fail with no
+    // indication of which dimension had changed.
+    const attestation = (r.job.shards[0] as ShardResult).attestation
+    expect('kind' in attestation ? [] : attestation.issuers).toHaveLength(1)
   })
 
   it('excludes a replica whose signature is over a different output, and says so', async () => {
@@ -3203,7 +3217,14 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
       agreeing: 2,
       verified: 1,
     })
+    // **Weaker than it read, once a third label appeared above `owner-domain` on 2026-09-16.**
+    // It refused exactly one label; the receipt this case is about carries no strength at all,
+    // so refusing a single word was never the property. Both strong labels are named — and the
+    // exhaustive form is asserted beside them, because a fifth label would date the pair again
+    // and would not date this.
     expect(shard.attestation).not.toMatchObject({ strength: 'independent' })
+    expect(shard.attestation).not.toMatchObject({ strength: 'single-issuer' })
+    expect('strength' in shard.attestation).toBe(false)
     if ('kind' in shard.attestation) {
       expect(shard.attestation.reason).toContain('did not sign this output')
     }
@@ -3304,7 +3325,10 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
     if (!r.ok) return
     const shard = r.job.shards[0] as ShardResult
     // Three were placed; two attested. A node that was asked and failed said nothing.
-    expect(shard.attestation).toMatchObject({ strength: 'independent', replicas: 2 })
+    // `'independent'` until VER-12: the two that attested are two operators and one authority,
+    // so the count that moved is the label's, not `replicas`. The subject of this case — that a
+    // node which was asked and failed contributes nothing — is untouched by the move.
+    expect(shard.attestation).toMatchObject({ strength: 'single-issuer', replicas: 2 })
     if ('strength' in shard.attestation) {
       expect(shard.attestation.operators).not.toContain('op-c')
     }
@@ -3392,10 +3416,14 @@ describe('VER-08/VER-09/VER-10 — every shard says how strongly it was attested
 
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({ strength: 'independent' })
+    // `'independent'` until VER-12 — one authority vouched for `a` and `b` both. The case's
+    // subject is that the JOB reads its weakest shard, and that is a comparison by rank rather
+    // than by word: inserting a label between the two being compared does not move it, which is
+    // why this case still reads as it did with a different pair of labels in it.
+    expect((r.job.shards[0] as ShardResult).attestation).toMatchObject({ strength: 'single-issuer' })
     expect((r.job.shards[1] as ShardResult).attestation).toMatchObject({ strength: 'owner-attested' })
     // The first shard is the strong one, so "first" and "strongest" both read
-    // `independent` here and only "weakest" reads this.
+    // `single-issuer` here and only "weakest" reads this.
     expect(r.job.attestation).toMatchObject({ strength: 'owner-attested' })
   })
 })
@@ -3434,7 +3462,11 @@ describe('VER-03/VER-04 — a public shard wanting verification gets a composed 
       expect([...shard.quorum.operators].sort()).toStrictEqual([operatorOf('op-a'), operatorOf('op-b')].sort())
     }
     expect(shard.degraded).toBe(false)
-    expect(shard.attestation).toMatchObject({ strength: 'independent' })
+    // `'independent'` until VER-12. The case's subject is that the shard is NOT degraded — the
+    // quorum composed across two operators on independent paths — and that is unchanged: the
+    // live path waives the issuer refusal, so one authority costs the label and not the
+    // composition. Asserted beside `degraded === false` for exactly that reason.
+    expect(shard.attestation).toMatchObject({ strength: 'single-issuer' })
   })
 
   it('degrades by default when one operator holds every candidate, and carries the composer’s reason', async () => {
@@ -3533,7 +3565,11 @@ describe('VER-03/VER-04 — a public shard wanting verification gets a composed 
     }
     // The receipt reports what the run established — two operators did agree — and the
     // shared dependency is visible on it too rather than inferred from the refusal.
-    expect(shard.attestation).toMatchObject({ strength: 'independent', sharedRelay: 'relay-shared' })
+    // `'independent'` until VER-12; the `sharedRelay` half is what this case is about and it
+    // did not move. Worth saying which refusal fired: `shared-relay-dependency`, asserted
+    // above, and NOT the issuer one — the issuer check is sited after the path check, so a
+    // set that fails both is still reported by the path rule it failed first.
+    expect(shard.attestation).toMatchObject({ strength: 'single-issuer', sharedRelay: 'relay-shared' })
   })
 
   it('refuses when the relay every other candidate depends on is itself a candidate', async () => {

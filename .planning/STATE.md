@@ -427,19 +427,26 @@ stopped_at: >-
   for irreversible acts produces `Partial` rows by construction. Written at the ceiling: if a
   fourth raise of the same shape arrives, the question is whether `experiment-not-run` needs its
   own count, not whether the ceiling moves again.
-last_updated: "2026-09-16T08:00:00.000Z"
+last_updated: "2026-09-16T18:10:00.000Z"
 last_activity: >-
-  2026-09-16 — Phase 44 executed: the provider derives a node's operator identity instead of
-  copying it from the request, and refuses a request that disagrees. VER-11 closed, taking the
-  v1 ledger to 70 of 74. The finding is larger than the fix -- four fixtures here, including
-  the published benchmark rung, were calling one owner's machines two operators. Phase 45 holds
-  the security weight and is gated on OWNER-ACTIONS row 3c.
+  2026-09-16 — the owner ruled OWNER-ACTIONS row 3c: ONE certificate provider, and the lower
+  ceiling accepted with it. Phase 45 executed on that ruling in four sequential waves, and
+  `independent` is now UNREACHABLE on this fabric: every member's certificate is signed by the
+  same party, so the strongest label a result can carry is `single-issuer`. That is the point,
+  not a regression -- the fabric stops claiming an independence it cannot support. VER-12
+  closed, taking the v1 ledger to 71 of 74. The rule ships at full strength; the live job path
+  waives the REFUSAL and keeps the CONSTRUCTION, so a second provider makes `independent`
+  reachable again with no code change, and a case pins that. Eleven plants across the phase,
+  eleven reds, no green plant. Two false greens were caught by ordinary work rather than by a
+  plant: a parser regex that stopped matching anything, leaving a neighbouring absence check
+  passing vacuously, and an assertion reading descriptions by array index that would have
+  retargeted silently onto the new label.
 progress:
   total_phases: 17
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 6
+  completed_phases: 2
+  total_plans: 7
+  completed_plans: 7
+  percent: 12
 ---
 
 <!--

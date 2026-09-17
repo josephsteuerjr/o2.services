@@ -840,9 +840,38 @@ const NODE_MEASUREMENT = {
    * `deploy-preserves-enrolment`, `fs-blockstore`, `issuance-rate` and `result-signature`;
    * the first two were re-run alone on a quiet host and still fail, and are being carried
    * separately rather than folded in here.
+   *
+   * **269 -> 270 and `tests` 3 865 -> 3 907 on 2026-09-16 (Phase 45, VER-12), COUNTED and not
+   * derived.** One file arrived: `packages/node/src/attestation-claims.node.test.ts`, the guard
+   * holding criterion 3 — no non-test source may compare an attestation strength against a
+   * string literal. It reads tracked source off disk with no subprocess, so it clears
+   * `SLOW_CUTOFF_MS` and joins the unit set; the pair below moved by the same one file, and the
+   * identity `unitFiles === files - excludedInNode` gives `270 - 83 = 187`, which is what was
+   * measured rather than what was assumed.
+   *
+   * **The 42-test rise is four plans' worth of cases, not one file's.** The arriving file
+   * carries 25; the remaining 17 are the issuer rule's own cases in `quorum.test.ts` (24 -> 32),
+   * the census arms added across the node project, and the two `mutation-guard` cases that the
+   * ledger's new `M81`/`M82` entries generate one each.
+   *
+   * Counted: `npx vitest run --project node` collected `Test Files 270 passed (270)` and
+   * `Tests 3905 passed | 2 skipped (3907)`, `EXIT=$?` read on the line immediately after the
+   * command with no pipe. `O2_UNIT_ONLY=1 npx vitest run --project node` collected
+   * `Test Files 187 passed (187)` and `Tests 3138 passed (3138)`, likewise exit 0 — **measured,
+   * not derived from `files - excludedInNode`**, because a number satisfying its own check is
+   * not a reading.
+   *
+   * **Both runs were taken on an oversubscribed host and both banners say so** — load/core 1.65
+   * before / 13.03 after on the full lane, 9.69 / 7.13 on the unit lane, against a ceiling of
+   * 4.00. `/usr/bin/time -p` on the unit lane read `real 39.53 user 124.20 sys 15.56`, ratio
+   * **3.53**. That voids every DURATION in those runs and **not** the counts: a file count and a
+   * test count are collected, not timed, and both lanes finished green with nothing skipped for
+   * load. No wall clock from either run is recorded here, and `unitWallClockMs` below is
+   * deliberately left at its earlier quiet-host reading rather than overwritten with a number
+   * this session cannot support.
    */
-  files: 269,
-  tests: 3865,
+  files: 270,
+  tests: 3907,
   /**
    * Sum of the per-file costs the table below records, over **every** file of **both**
    * projects: 1 098 805 ms for the `node` project's 198 files by the accounted window, plus
@@ -1262,9 +1291,16 @@ const NODE_MEASUREMENT = {
    * 3100 passed (3102)` on a quiet host (load/core 1.85 before, 2.38 after). The two failures
    * are `deploy-preserves-enrolment` and `fs-blockstore`, both pre-existing, both named in the
    * `files` note above; a count is a count whether the run was green.
+   *
+   * **186 -> 187 and `unitTests` 3 102 -> 3 138 on 2026-09-16 (Phase 45, VER-12).** The full
+   * derivation, the arriving file and the host conditions are in the `files`/`tests` note above
+   * rather than repeated here. Measured directly — `O2_UNIT_ONLY=1 npx vitest run --project
+   * node`, `Test Files 187 passed (187)`, `Tests 3138 passed (3138)`, exit 0 — and the identity
+   * `unitFiles === files - excludedInNode` (`270 - 83`) is reported as **agreeing with** that
+   * reading, never as its source.
    */
-  unitFiles: 186,
-  unitTests: 3102,
+  unitFiles: 187,
+  unitTests: 3138,
   // 10.24 s against the 2026-08-25 layer's 6.95 s, on the same contended host as the
   // run above and for the same reason — a fast loop is where a foreign core shows most.
   unitWallClockMs: 10_240,

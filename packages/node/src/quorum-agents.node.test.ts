@@ -496,7 +496,7 @@ afterEach(async () => {
 }, 60_000)
 
 describe('criterion 1 — three operators, a quorum whose independence is read off certificates', () => {
-  it('composes across two distinct operators that share no relay, and labels it independent', async () => {
+  it('composes across two distinct operators that share no relay, and labels it single-issuer', async () => {
     const fixture = await standUp([0xb7, 0xb8, 0xb9])
     const { executors, requestor } = fixture
 
@@ -600,8 +600,19 @@ describe('criterion 1 — three operators, a quorum whose independence is read o
     // ---- The strength, not merely that the job finished. ---------------------------
     // A job over one operator would also complete; `owner-domain` is what it would read,
     // and fabric A below is that job over this same shape of fixture.
-    expect(attestation.strength).toBe('independent')
-    expect(attestation.description).toBe(describeAttestation('independent'))
+    //
+    // **`'independent'` until 2026-09-16, VER-12, and this is a rig rather than a fixture.**
+    // What it was relying on is that distinct operators make a result independent — true of
+    // the operator dimension, and silent about the provider one. These are real processes
+    // enrolled against ONE live provider, so one party vouched for every member and the label
+    // that describes this rig is the one that says so. `45-CONTEXT.md` §4 draws that line: a
+    // fixture may be handed a second authority because the count is what the rule checks; an
+    // across-process rig may not, because its label has to describe the rig that ran.
+    expect(attestation.strength).toBe('single-issuer')
+    expect(attestation.description).toBe(describeAttestation('single-issuer'))
+    // One authority, stated as the count the label turns on rather than left to be inferred
+    // from the word — this is the fact that makes `single-issuer` the honest reading here.
+    expect(attestation.issuers).toHaveLength(1)
     expect(result.job.attestation).toStrictEqual(attestation)
   }, PROCESS_TEST_TIMEOUT)
 })
@@ -721,7 +732,11 @@ describe('criterion 1 engineered — one operator: degraded by default, refused 
       throw new Error(`expected a receipt, got the named absence: ${degradedAttestation.reason}`)
     }
     expect(degradedAttestation.strength).toBe('owner-domain')
+    // Two labels sit above `owner-domain` since VER-12, so refusing one of them no longer
+    // covers the failure this guards: an implementation returning the stronger label
+    // unconditionally could now return either. Both are named.
     expect(degradedAttestation.strength).not.toBe('independent')
+    expect(degradedAttestation.strength).not.toBe('single-issuer')
     expect(degradedAttestation.description).toBe(describeAttestation('owner-domain'))
     expect(degradedAttestation.replicas).toBe(2)
     expect([...degradedAttestation.operators]).toStrictEqual([expectedOperator(0xb7)])
@@ -1130,14 +1145,22 @@ describe('criterion 1 engineered — one relay: caught by rule 2 and named by it
       throw new Error(`expected a receipt, got the named absence: ${degradedAttestation.reason}`)
     }
     expect(degradedAttestation.replicas).toBe(2)
-    // **And the receipt honestly reads `independent` on a shard that is `degraded`.** Two
-    // separate operators did agree, which is exactly what that label claims; what this
-    // fabric lacks is *path* independence, and `degraded` plus the composer's reason are
-    // what carry that. `ShardResult.degraded`'s doc says the two are different tests and
-    // that neither can be inferred from the other — asserted here rather than assumed,
-    // because the pairing looks like a contradiction until it is read.
+    // **And the receipt honestly reads a strength above `owner-domain` on a shard that is
+    // `degraded`.** Two separate operators did agree, which is what the operator half of that
+    // label claims; what this fabric lacks is *path* independence, and `degraded` plus the
+    // composer's reason are what carry that. `ShardResult.degraded`'s doc says the two are
+    // different tests and that neither can be inferred from the other — asserted here rather
+    // than assumed, because the pairing looks like a contradiction until it is read.
+    //
+    // **The word was `'independent'` until 2026-09-16, VER-12.** The sentence above was written
+    // when two operators was the whole of the claim; a second dimension now has to hold too,
+    // and on this rig it does not — every process enrolled against one live provider. So the
+    // operator half is unchanged and asserted as before, and the label reports the provider
+    // half as well. **The three-way pairing is the point of the case and it survives intact**:
+    // a receipt above `owner-domain`, a shard `degraded`, and a named shared relay, all at once.
     expect(new Set(degradedAttestation.operators).size).toBe(2)
-    expect(degradedAttestation.strength).toBe('independent')
+    expect(degradedAttestation.strength).toBe('single-issuer')
+    expect(degradedAttestation.issuers).toHaveLength(1)
     // The receipt also names the shared relay itself, so a reader holding only the receipt
     // can see the dependency the composer refused on.
     expect(degradedAttestation.sharedRelay).toBe(relay.peerId)

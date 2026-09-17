@@ -2131,9 +2131,14 @@ function strengthReading(attestation: ShardAttestation): string {
       attestation.reason
     )
   }
+  // A third count, for the reason `bin/agent.ts` gives at the same place: the label to its
+  // left now depends on two separate things being greater than one, and a line carrying
+  // only the first of them leaves a reader unable to say which one fell short. That is the
+  // distinction ROADMAP criterion 5 asks a surface to make legible.
   return (
     `${attestation.strength} (replicas ${attestation.replicas},` +
-    ` operators ${attestation.operators.length}) — ${attestation.description}`
+    ` operators ${attestation.operators.length},` +
+    ` issuers ${attestation.issuers.length}) — ${attestation.description}`
   )
 }
 
@@ -2177,9 +2182,15 @@ function aggregateReading(held: RungAttestation | NoJobToAttest): string | null 
   // The kernel's own sentence, copied rather than composed — `attestationReceipt` filled
   // `description` from `describeAttestation`, and one source of the words is what stops
   // the map line and this line describing one strength differently.
+  //
+  // The third count matches the map line's, in the same order, for the same reason: the
+  // label depends on two counts now, and one of them alone cannot say which fell short.
+  // The word naming which claim this line carries is untouched — the caller prefixes it,
+  // and the docblock above says why neither line may lose it.
   return (
     `${aggregate.strength} (replicas ${aggregate.replicas},` +
-    ` operators ${aggregate.operators.length}) — ${aggregate.description}`
+    ` operators ${aggregate.operators.length},` +
+    ` issuers ${aggregate.issuers.length}) — ${aggregate.description}`
   )
 }
 

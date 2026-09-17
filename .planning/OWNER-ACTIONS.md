@@ -188,6 +188,21 @@ live.
 
 ## 3c. How many providers — the decision that decides what `independent` means
 
+> **RULED 2026-09-16 — ONE PROVIDER, and the ceiling is accepted along with it.** The owner's
+> words were *"пока будет один"* — one, for now. That is the second option below, taken
+> deliberately: **`independent` is not reachable in this fabric**, and the strongest label a
+> result can carry becomes `single-issuer`, until a second provider exists.
+>
+> **Nothing about the rule is provisional, only the number of providers is.** Phase 45
+> implements issuer diversity at full strength with `requireDistinctIssuers` defaulting true —
+> a rule relaxed while waiting for a second provider would be the same overstated claim this
+> row exists to stop. The day a second provider runs, `independent` becomes reachable with no
+> code change; that is the property the phase is built for, and it is why the decision costs
+> nothing to revisit.
+>
+> **This row is Done.** It no longer gates 3b, and Phase 45 may be planned in detail.
+
+
 | | |
 |---|---|
 | **Act** | Rule: does this fabric run ONE certificate provider, or more than one? |
@@ -739,7 +754,7 @@ is ignored.
 | # | act | why it sits here |
 |---|---|---|
 | 10 | rule on what a peer may announce about its machine | must precede 11 — the release re-asks every returning visitor **once regardless**, and a decision taken after it costs a **second** re-ask of a cohort that is spendable once |
-| 3c | rule on how many providers the fabric will have | **must precede 3b**, and it is the newest row here — see §3c. It decides whether `independent` is a claim this fabric can support at all |
+| 3c | ~~rule on how many providers the fabric will have~~ — **RULED 2026-09-16: one, and the lower ceiling accepted with it.** `independent` is unreachable until a second provider exists; the strongest label becomes `single-issuer` | **Done.** No longer gates 3b. Phase 45 is unblocked and implements the rule at full strength — see §3c |
 | 3b | set the issuance budget | must precede 11 — `deploy-pages.sh` probes `/self` before it writes `enrollmentProvider`, so a client published against a node that issues nothing offers no enrolment, and no visitor can hold the certificate the TURN rung asks for |
 | 11 | cut the release | puts the tree's disclosure in front of visitors, and is the disclosure gate itself |
 | 12 | the Telegram remainder | a device that participates once is a cohort spent once |
