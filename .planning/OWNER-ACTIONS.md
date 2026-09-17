@@ -369,7 +369,7 @@ backgrounding. Yes/no per line is enough.
 | | |
 |---|---|
 | **Act** | Send the first invite |
-| **Cost** | **Irreversible in the one way that matters: a Telegram-recruited cohort of a few hundred is spendable exactly once.** *(The patent-disclosure reasoning that used to sit in this cell is **retired** — the project is open source under AGPL, which grants those rights by §11, and the repository has been public since 2026-07-26. It is not a cost of this act and must not be restated as one.)* |
+| **Cost** | **Irreversible: a Telegram-recruited cohort of a few hundred is spendable exactly once.** |
 | **Why not an agent** | The disclosure gate is the owner's by ruling, and a Telegram-recruited cohort of a few hundred is spendable exactly once |
 | **Waits on** | Its own criterion 1 — a dated checklist with named evidence for all seven of `BROW-06`…`BROW-10`, `RUN-02`, `RUN-03`. A row with no named evidence is a no-go, not a judgement call. **And rows 10 to 13 below, in that order** |
 
@@ -754,7 +754,7 @@ is ignored.
 | # | act | why it sits here |
 |---|---|---|
 | 10 | rule on what a peer may announce about its machine | must precede 11 — the release re-asks every returning visitor **once regardless**, and a decision taken after it costs a **second** re-ask of a cohort that is spendable once |
-| 3c | ~~rule on how many providers the fabric will have~~ — **RULED 2026-09-16: one, and the lower ceiling accepted with it.** `independent` is unreachable until a second provider exists; the strongest label becomes `single-issuer` | **Done.** No longer gates 3b. Phase 45 is unblocked and implements the rule at full strength — see §3c |
+| 3c | **RULED 2026-09-16: one provider, and the lower ceiling accepted with it.** `independent` is unreachable until a second provider exists; the strongest label is `single-issuer` | **Done.** No longer gates 3b — see §3c |
 | 3b | set the issuance budget | must precede 11 — `deploy-pages.sh` probes `/self` before it writes `enrollmentProvider`, so a client published against a node that issues nothing offers no enrolment, and no visitor can hold the certificate the TURN rung asks for |
 | 11 | cut the release | puts the tree's disclosure in front of visitors, and is the disclosure gate itself |
 | 12 | the Telegram remainder | a device that participates once is a cohort spent once |
@@ -794,7 +794,7 @@ change and no extra byte on the wire.
 | | |
 |---|---|
 | **Act** | `scripts/deploy-hosted.sh --live`, then `scripts/deploy-pages.sh --live` |
-| **Cost** | **Money, on an account with no hard spending ceiling** — Cloudflare's own wording for budget alerts is *"informational only. It does not cap your usage."* *(The patent-disclosure reasoning that used to sit in this cell is **retired**: the project is open source under AGPL and the repository has been public since 2026-07-26, so there is nothing left to forfeit. The gate stays, on the billing argument.)* |
+| **Cost** | **Money, on an account with no hard spending ceiling** — Cloudflare's own wording for budget alerts is *"informational only. It does not cap your usage."* |
 | **Why not an agent** | `DEMO-04`'s ruling makes deployment a separately-triggered gate, never an automatic consequence of a phase completing |
 | **Waits on** | Rows 10 and 3b |
 
