@@ -74,16 +74,9 @@ manifest and coverage report, not by a quorum.
   time**, not as runtime configuration
 - **Hosting**: GitHub Pages serves static files only and runs no server-side
   process — it can host the client but not a relay or bootstrap node
-- **Disclosure**: ~~Public hosting is public disclosure and forfeits patent rights.~~
-  **RETIRED 2026-08-24 by owner ruling and again on 2026-09-16 — do not raise it.**
-  The project is open source under AGPL, which **grants** patent rights by §11, and the
-  repository has been public since 2026-07-26. There is nothing left to forfeit and no
-  reservation left to protect; `.planning/PROJECT.md` recorded this as retired on
-  2026-08-24 and this file was not updated with it, which is why it kept being repeated
-  back to the owner as a live cost. **It is not a cost, not a caveat, and not a reason
-  for anything.** What survives is one operational rule with a different justification:
-  deployment is a separately-triggered gate because it spends money on an account with no
-  hard ceiling, not because of disclosure. `DEMO-04`'s guard still enforces the gate
+- **Deployment**: a separately-triggered gate, never an automatic consequence of a
+  phase completing, because Cloudflare has no hard spending ceiling. `DEMO-04`'s
+  guard enforces it
 - **Platform**: `elfconv` requires AArch64, statically-linked binaries and is a
   C++/LLVM/Remill toolchain — a build-time dependency producing `.wasm`, not a
   TypeScript component. **"Unstripped" was wrong** — corrected in Phase 10 against a
