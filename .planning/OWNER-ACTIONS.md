@@ -369,7 +369,7 @@ backgrounding. Yes/no per line is enough.
 | | |
 |---|---|
 | **Act** | Send the first invite |
-| **Cost** | **Irreversible.** Public hosting is public disclosure; EPO and China have no patent grace period, so this forfeits those rights permanently |
+| **Cost** | **Irreversible in the one way that matters: a Telegram-recruited cohort of a few hundred is spendable exactly once.** *(The patent-disclosure reasoning that used to sit in this cell is **retired** — the project is open source under AGPL, which grants those rights by §11, and the repository has been public since 2026-07-26. It is not a cost of this act and must not be restated as one.)* |
 | **Why not an agent** | The disclosure gate is the owner's by ruling, and a Telegram-recruited cohort of a few hundred is spendable exactly once |
 | **Waits on** | Its own criterion 1 — a dated checklist with named evidence for all seven of `BROW-06`…`BROW-10`, `RUN-02`, `RUN-03`. A row with no named evidence is a no-go, not a judgement call. **And rows 10 to 13 below, in that order** |
 
@@ -794,7 +794,7 @@ change and no extra byte on the wire.
 | | |
 |---|---|
 | **Act** | `scripts/deploy-hosted.sh --live`, then `scripts/deploy-pages.sh --live` |
-| **Cost** | **Irreversible.** Public hosting is public disclosure; EPO and China have no patent grace period |
+| **Cost** | **Money, on an account with no hard spending ceiling** — Cloudflare's own wording for budget alerts is *"informational only. It does not cap your usage."* *(The patent-disclosure reasoning that used to sit in this cell is **retired**: the project is open source under AGPL and the repository has been public since 2026-07-26, so there is nothing left to forfeit. The gate stays, on the billing argument.)* |
 | **Why not an agent** | `DEMO-04`'s ruling makes deployment a separately-triggered gate, never an automatic consequence of a phase completing |
 | **Waits on** | Rows 10 and 3b |
 

@@ -243,10 +243,13 @@ Two guard suites protect constraints that are easy to erode silently:
 
 ## Disclosure
 
-**The repository is public by explicit decision.** EPO and China have no patent
-grace period, so those rights are permanently forfeit for everything disclosed. A
-US provisional remains possible for 12 months from first disclosure, and that
-window is running.
+**The repository is public by explicit decision, and the project is open source
+under the AGPL** — which *grants* patent rights by [§11](LICENSE) rather than
+reserving them. The forfeit-by-disclosure reasoning this section used to carry is
+**retired**: there is nothing left to reserve, and `LICENSING.md` records the
+reversal in full. What follows is kept because the guard it describes is still
+live, on a different argument — a deploy spends money on an account with no hard
+spending ceiling.
 
 Consequently: **no deploy workflow file may exist in this repository at all** —
 absent, not disabled — and no `package.json` script may publish.
